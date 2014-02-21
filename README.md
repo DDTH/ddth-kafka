@@ -38,7 +38,8 @@ Publish messages:
 ```java
 import com.github.ddth.kafka.KafkaProducer;
 ...
-KafkaProducer producer = new KafkaProducer("localhost:9092");
+String kafkaBrokerList = "host1:9092,host2:9092";
+KafkaProducer producer = new KafkaProducer(kafkaBrokerList);
 producer.init(); //don't forget to initialize the producer
 
 //send a message
@@ -53,3 +54,15 @@ producer.sendMessages("topic", messages);
 
 producer.destroy; //destroy the producer when done
 ```
+
+Consume single message:
+
+```java
+import com.github.ddth.kafka.KafkaConsumer;
+...
+String zookeeperConnString = "host1:2182,host2:2182/kafka";
+String consumerGroupId = "my-group-id";
+KafkaConsumer consumer = new KafkaConsumer(zookeeperConnString, consumerGroupId);
+consumer.init(); //don't forget to initialize the consumer
+
+consumer.destroy(); //destroy the consumer when done
