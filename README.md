@@ -52,7 +52,7 @@ producer.sendMessage("topic", "key", "message 2");
 String[] messages = new String[]{"msg1", "msg2", "msg3"};
 producer.sendMessages("topic", messages);
 
-producer.destroy; //destroy the producer when done
+producer.destroy(); //destroy the producer when done
 ```
 
 Consume single message:
@@ -65,4 +65,37 @@ String consumerGroupId = "my-group-id";
 KafkaConsumer consumer = new KafkaConsumer(zookeeperConnString, consumerGroupId);
 consumer.init(); //don't forget to initialize the consumer
 
+//consume one message from a topic, this method blocks until message is available
+byte[] message = consumer.consume("topic");
+
+//consume one message from a topic, wait up to 3 seconds for message to become available
+byte[] message = consumer.consume("topic", 3, TimeUnit.SECONDS);
+
 consumer.destroy(); //destroy the consumer when done
+```
+
+Consume messages using message listener
+
+```java
+import com.github.ddth.kafka.KafkaConsumer;
+import com.github.ddth.kafka.IKafkaMessageListener;
+...
+String zookeeperConnString = "host1:2182,host2:2182/kafka";
+String consumerGroupId = "my-group-id";
+KafkaConsumer consumer = new KafkaConsumer(zookeeperConnString, consumerGroupId);
+consumer.init(); //don't forget to initialize the consumer
+
+IKafkaMessageListener messageListener = new IKafkaMessageListener() {
+    @Override
+    public void onMessage(String topic, int partition, long offset, byte[] key, byte[] message) {
+        //do something with the received message
+    }
+}
+consumer.addMessageListener("topic", messageListener);
+...
+//stop receving message
+consumer.removeMessageListener("topic", messageListener);
+...
+
+consumer.destroy(); //destroy the consumer when done
+```
