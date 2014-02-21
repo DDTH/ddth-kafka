@@ -55,7 +55,7 @@ producer.sendMessages("topic", messages);
 producer.destroy(); //destroy the producer when done
 ```
 
-Consume single message:
+Consume one single message:
 
 ```java
 import com.github.ddth.kafka.KafkaConsumer;
@@ -74,7 +74,7 @@ byte[] message = consumer.consume("topic", 3, TimeUnit.SECONDS);
 consumer.destroy(); //destroy the consumer when done
 ```
 
-Consume messages using message listener
+Consume messages using message listener:
 
 ```java
 import com.github.ddth.kafka.KafkaConsumer;
@@ -99,3 +99,8 @@ consumer.removeMessageListener("topic", messageListener);
 
 consumer.destroy(); //destroy the consumer when done
 ```
+
+> #### Consumer Group Id ####
+> If two or more comsumers have a same group id, and consume messages from a same topic: messages will be consumed just like a queue: no message is consumed by more than one consumer. Which consumer consumes which message is undetermined.
+>
+> If two or more comsumers with different group ids, and consume messages from a same topic: messages will be consumed just like publish-subscribe pattern: one message is consumed by all consumers.
