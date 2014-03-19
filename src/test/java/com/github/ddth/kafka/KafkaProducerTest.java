@@ -6,9 +6,6 @@ import java.util.concurrent.TimeUnit;
 
 import junit.framework.Test;
 import junit.framework.TestSuite;
-import kafka.admin.CreateTopicCommand;
-import kafka.server.KafkaServer;
-import kafka.utils.TestUtils;
 
 public class KafkaProducerTest extends BaseKafkaTest {
 
@@ -32,15 +29,6 @@ public class KafkaProducerTest extends BaseKafkaTest {
         } finally {
             producer.destroy();
         }
-    }
-
-    private void createTopic(String topic) {
-        // create topic
-        CreateTopicCommand.createTopic(zkClient, topic, 1, 1, "");
-        List<KafkaServer> servers = new ArrayList<KafkaServer>();
-        servers.add(kafkaServer);
-        TestUtils.waitUntilMetadataIsPropagated(
-                scala.collection.JavaConversions.asScalaBuffer(servers), TOPIC, 0, 5000);
     }
 
     @org.junit.Test

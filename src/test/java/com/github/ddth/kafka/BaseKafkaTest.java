@@ -4,12 +4,11 @@ import java.io.IOException;
 import java.util.Properties;
 
 import junit.framework.TestCase;
+import kafka.admin.AdminUtils;
 import kafka.javaapi.consumer.SimpleConsumer;
 import kafka.server.KafkaConfig;
-import kafka.server.KafkaServer;
-import kafka.utils.MockTime;
+import kafka.server.KafkaServerStartable;
 import kafka.utils.TestUtils;
-import kafka.utils.Time;
 import kafka.utils.ZKStringSerializer$;
 
 import org.I0Itec.zkclient.ZkClient;
@@ -31,14 +30,25 @@ public abstract class BaseKafkaTest extends TestCase {
         super(testName);
     }
 
-    // protected KafkaServerStartable kafkaServer;
-    protected KafkaServer kafkaServer;
+    protected KafkaServerStartable kafkaServer;
     protected TestingServer zkServer;
     protected ZkClient zkClient;
     protected SimpleConsumer kafkaSimpleConsumer;
 
     protected KafkaProducer kafkaProducer;
     protected KafkaConsumer kafkaConsumer;
+
+    protected void createTopic(String topic) {
+        Properties props = new Properties();
+        int partitions = 1;
+        int replicationFactor = 1;
+        AdminUtils.createTopic(zkClient, topic, partitions, replicationFactor, props);
+        // List<KafkaServer> servers = new ArrayList<KafkaServer>();
+        // servers.add(kafkaServer);
+        // TestUtils.waitUntilMetadataIsPropagated(
+        // scala.collection.JavaConversions.asScalaBuffer(servers), TOPIC, 0,
+        // 5000);
+    }
 
     private static KafkaConfig getKafkaConfig(final String zkConnectString) {
         scala.collection.Iterator<Properties> propsI = TestUtils.createBrokerConfigs(1).iterator();
@@ -60,12 +70,10 @@ public abstract class BaseKafkaTest extends TestCase {
 
         // setup Kafka
         KafkaConfig config = getKafkaConfig(zkServer.getConnectString());
-        Time mock = new MockTime();
-        kafkaServer = TestUtils.createServer(config, mock);
-        // kafkaServer = new KafkaServerStartable(config);
-        // kafkaServer.startup();
+        kafkaServer = new KafkaServerStartable(config);
+        kafkaServer.startup();
         kafkaSimpleConsumer = new SimpleConsumer(getKafkaHost(), getKafkaPort(),
-                10000 /* soTintout */, 64 * 1024 /* */, "clientname");
+                10000 /* soTimeout */, 64 * 1024 /* */, "clientname");
 
         // setup Producer
         kafkaProducer = new KafkaProducer(getKafkaBrokerString());
@@ -86,7 +94,7 @@ public abstract class BaseKafkaTest extends TestCase {
     }
 
     protected String getKafkaBrokerString() {
-        return String.format("localhost:%d", kafkaServer.config().port());
+        return String.format("localhost:%d", kafkaServer.serverConfig().port());
     }
 
     protected String getZkConnectString() {
@@ -94,10 +102,10 @@ public abstract class BaseKafkaTest extends TestCase {
     }
 
     protected int getKafkaPort() {
-        return kafkaServer.config().port();
+        return kafkaServer.serverConfig().port();
     }
 
     protected String getKafkaHost() {
-        return kafkaServer.config().hostName();
+        return kafkaServer.serverConfig().hostName();
     }
 }

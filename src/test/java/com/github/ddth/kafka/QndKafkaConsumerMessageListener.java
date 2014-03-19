@@ -2,34 +2,28 @@ package com.github.ddth.kafka;
 
 import java.util.Random;
 
-import kafka.admin.CreateTopicCommand;
-import kafka.utils.ZKStringSerializer$;
+import kafka.server.KafkaServerStartable;
 
-import org.I0Itec.zkclient.ZkClient;
+import org.apache.curator.test.TestingServer;
 
-public class QndKafkaConsumerMessageListener {
+public class QndKafkaConsumerMessageListener extends BaseQndKafka {
 
-    public static void main(String[] args) throws InterruptedException {
-
-        final String KAFKA_BROKER_CONNSTR = "localhost:9092";
-        final String KAFKA_BROKER_ZKCONNSTR = "localhost:2181/kafka";
-
+    public void qndMessageListener() throws Exception {
         Random rand = new Random(System.currentTimeMillis());
         int timestamp = (int) (System.currentTimeMillis() / 1000);
 
-        KafkaProducer kafkaProducer = new KafkaProducer(KAFKA_BROKER_CONNSTR);
+        TestingServer zkServer = newZkServer();
+        KafkaServerStartable kafkaServer = newKafkaServer(zkServer);
+
+        KafkaProducer kafkaProducer = newKafkaProducer(kafkaServer, KafkaProducer.Type.SYNC_NO_ACK);
         kafkaProducer.init();
 
-        KafkaConsumer kafkaConsumer = new KafkaConsumer(KAFKA_BROKER_ZKCONNSTR, "my-group-id");
+        KafkaConsumer kafkaConsumer = newKafkaConsumer(zkServer, "my-group-id");
         kafkaConsumer.init();
 
+        // create topic
         String topic = "topic_test_" + rand.nextInt(timestamp);
-        ZkClient zkClient = new ZkClient(KAFKA_BROKER_ZKCONNSTR, 30000, 30000,
-                ZKStringSerializer$.MODULE$);
-        CreateTopicCommand.createTopic(zkClient, topic, 2, 1, "");
-        System.out.println(topic);
-        Thread.sleep(2000);
-        zkClient.close();
+        createTopic(zkServer, topic);
 
         kafkaConsumer.addMessageListener(topic, new IKafkaMessageListener() {
             @Override
@@ -47,5 +41,12 @@ public class QndKafkaConsumerMessageListener {
 
         kafkaProducer.destroy();
         kafkaConsumer.destroy();
+        kafkaServer.shutdown();
+        zkServer.close();
+    }
+
+    public static void main(String[] args) throws Exception {
+        QndKafkaConsumerMessageListener test = new QndKafkaConsumerMessageListener();
+        test.qndMessageListener();
     }
 }

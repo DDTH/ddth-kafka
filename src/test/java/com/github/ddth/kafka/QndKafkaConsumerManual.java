@@ -3,40 +3,32 @@ package com.github.ddth.kafka;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
-import kafka.admin.CreateTopicCommand;
-import kafka.utils.ZKStringSerializer$;
+import kafka.server.KafkaServerStartable;
 
-import org.I0Itec.zkclient.ZkClient;
+import org.apache.curator.test.TestingServer;
 
-public class QndKafkaConsumerManual {
+public class QndKafkaConsumerManual extends BaseQndKafka {
 
-    static final String KAFKA_BROKER_CONNSTR = "localhost:9092";
-    static final String KAFKA_BROKER_ZKCONNSTR = "localhost:2181/kafka";
+    // static final String KAFKA_BROKER_CONNSTR = "localhost:9092";
+    // static final String KAFKA_BROKER_ZKCONNSTR = "localhost:2181/kafka";
     static final Random rand = new Random(System.currentTimeMillis());
 
-    static void createTopic(String topic) throws InterruptedException {
-        ZkClient zkClient = new ZkClient(KAFKA_BROKER_ZKCONNSTR, 30000, 30000,
-                ZKStringSerializer$.MODULE$);
-        CreateTopicCommand.createTopic(zkClient, topic, 2, 1, "");
-        System.out.println(topic);
-        Thread.sleep(2000);
-        zkClient.close();
-    }
-
-    static void qndAsyncProducer() throws InterruptedException {
+    public void qndAsyncProducer() throws Exception {
         System.out.println("========== QND: Async Producer ==========");
         int timestamp = (int) (System.currentTimeMillis() / 1000);
 
-        KafkaProducer kafkaProducer = new KafkaProducer(KAFKA_BROKER_CONNSTR,
-                KafkaProducer.Type.FULL_ASYNC);
+        TestingServer zkServer = newZkServer();
+        KafkaServerStartable kafkaServer = newKafkaServer(zkServer);
+
+        KafkaProducer kafkaProducer = newKafkaProducer(kafkaServer, KafkaProducer.Type.FULL_ASYNC);
         kafkaProducer.init();
 
-        KafkaConsumer kafkaConsumer = new KafkaConsumer(KAFKA_BROKER_ZKCONNSTR, "my-group-id");
+        KafkaConsumer kafkaConsumer = newKafkaConsumer(zkServer, "my-group-id");
         kafkaConsumer.init();
 
         // create topic
         String topic = "topic_test_" + rand.nextInt(timestamp);
-        createTopic(topic);
+        createTopic(zkServer, topic);
 
         // call consume method once to initialize message consumer
         kafkaConsumer.consume(topic, 1000, TimeUnit.MILLISECONDS);
@@ -55,22 +47,26 @@ public class QndKafkaConsumerManual {
 
         kafkaProducer.destroy();
         kafkaConsumer.destroy();
+        kafkaServer.shutdown();
+        zkServer.close();
     }
 
-    static void qndSyncNoAckProducer() throws InterruptedException {
+    protected void qndSyncNoAckProducer() throws Exception {
         System.out.println("========== QND: SyncNoAck Producer ==========");
         int timestamp = (int) (System.currentTimeMillis() / 1000);
 
-        KafkaProducer kafkaProducer = new KafkaProducer(KAFKA_BROKER_CONNSTR,
-                KafkaProducer.Type.SYNC_NO_ACK);
+        TestingServer zkServer = newZkServer();
+        KafkaServerStartable kafkaServer = newKafkaServer(zkServer);
+
+        KafkaProducer kafkaProducer = newKafkaProducer(kafkaServer, KafkaProducer.Type.SYNC_NO_ACK);
         kafkaProducer.init();
 
-        KafkaConsumer kafkaConsumer = new KafkaConsumer(KAFKA_BROKER_ZKCONNSTR, "my-group-id");
+        KafkaConsumer kafkaConsumer = newKafkaConsumer(zkServer, "my-group-id");
         kafkaConsumer.init();
 
         // create topic
         String topic = "topic_test_" + rand.nextInt(timestamp);
-        createTopic(topic);
+        createTopic(zkServer, topic);
 
         // call consume method once to initialize message consumer
         kafkaConsumer.consume(topic, 1000, TimeUnit.MILLISECONDS);
@@ -89,22 +85,27 @@ public class QndKafkaConsumerManual {
 
         kafkaProducer.destroy();
         kafkaConsumer.destroy();
+        kafkaServer.shutdown();
+        zkServer.close();
     }
 
-    static void qndSyncLeaderAckProducer() throws InterruptedException {
+    protected void qndSyncLeaderAckProducer() throws Exception {
         System.out.println("========== QND: SyncLeaderAck Producer ==========");
         int timestamp = (int) (System.currentTimeMillis() / 1000);
 
-        KafkaProducer kafkaProducer = new KafkaProducer(KAFKA_BROKER_CONNSTR,
+        TestingServer zkServer = newZkServer();
+        KafkaServerStartable kafkaServer = newKafkaServer(zkServer);
+
+        KafkaProducer kafkaProducer = newKafkaProducer(kafkaServer,
                 KafkaProducer.Type.SYNC_LEADER_ACK);
         kafkaProducer.init();
 
-        KafkaConsumer kafkaConsumer = new KafkaConsumer(KAFKA_BROKER_ZKCONNSTR, "my-group-id");
+        KafkaConsumer kafkaConsumer = newKafkaConsumer(zkServer, "my-group-id");
         kafkaConsumer.init();
 
         // create topic
         String topic = "topic_test_" + rand.nextInt(timestamp);
-        createTopic(topic);
+        createTopic(zkServer, topic);
 
         // call consume method once to initialize message consumer
         kafkaConsumer.consume(topic, 1000, TimeUnit.MILLISECONDS);
@@ -123,22 +124,27 @@ public class QndKafkaConsumerManual {
 
         kafkaProducer.destroy();
         kafkaConsumer.destroy();
+        kafkaServer.shutdown();
+        zkServer.close();
     }
 
-    static void qndSyncAllAcksProducer() throws InterruptedException {
+    protected void qndSyncAllAcksProducer() throws Exception {
         System.out.println("========== QND: SyncAllAcks Producer ==========");
         int timestamp = (int) (System.currentTimeMillis() / 1000);
 
-        KafkaProducer kafkaProducer = new KafkaProducer(KAFKA_BROKER_CONNSTR,
+        TestingServer zkServer = newZkServer();
+        KafkaServerStartable kafkaServer = newKafkaServer(zkServer);
+
+        KafkaProducer kafkaProducer = newKafkaProducer(kafkaServer,
                 KafkaProducer.Type.SYNC_ALL_ACKS);
         kafkaProducer.init();
 
-        KafkaConsumer kafkaConsumer = new KafkaConsumer(KAFKA_BROKER_ZKCONNSTR, "my-group-id");
+        KafkaConsumer kafkaConsumer = newKafkaConsumer(zkServer, "my-group-id");
         kafkaConsumer.init();
 
         // create topic
         String topic = "topic_test_" + rand.nextInt(timestamp);
-        createTopic(topic);
+        createTopic(zkServer, topic);
 
         // call consume method once to initialize message consumer
         kafkaConsumer.consume(topic, 1000, TimeUnit.MILLISECONDS);
@@ -157,12 +163,16 @@ public class QndKafkaConsumerManual {
 
         kafkaProducer.destroy();
         kafkaConsumer.destroy();
+        kafkaServer.shutdown();
+        zkServer.close();
     }
 
-    public static void main(String[] args) throws InterruptedException {
-        qndAsyncProducer();
-        qndSyncNoAckProducer();
-        qndSyncLeaderAckProducer();
-        qndSyncAllAcksProducer();
+    public static void main(String[] args) throws Exception {
+        QndKafkaConsumerManual test = new QndKafkaConsumerManual();
+
+        test.qndAsyncProducer();
+        test.qndSyncNoAckProducer();
+        test.qndSyncLeaderAckProducer();
+        test.qndSyncAllAcksProducer();
     }
 }

@@ -6,7 +6,7 @@ DDTH's Kafka Libraries and Utilities: simplify using [Apache Kafka](http://kafka
 Project home:
 [https://github.com/DDTH/ddth-kafka](https://github.com/DDTH/ddth-kafka)
 
-For OSGi environment, see [ddth-osgikafka](https://github.com/DDTH/ddth-osgikafka).
+OSGi environment: since v0.2.0 `ddth-kafka` is packaged as an OSGi bundle.
 
 
 ## License ##
@@ -18,7 +18,7 @@ Third party libraries are distributed under their own licenses.
 
 ## Installation #
 
-Latest release version: `0.1.0`. See [RELEASE-NOTES.md](RELEASE-NOTES.md).
+Latest release version: `0.2.0`. See [RELEASE-NOTES.md](RELEASE-NOTES.md).
 
 Maven dependency:
 
@@ -26,7 +26,7 @@ Maven dependency:
 <dependency>
 	<groupId>com.github.ddth</groupId>
 	<artifactId>ddth-kafka</artifactId>
-	<version>0.1.0</version>
+	<version>0.2.0</version>
 </dependency>
 ```
 
