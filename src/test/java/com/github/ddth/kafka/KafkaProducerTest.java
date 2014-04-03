@@ -32,7 +32,7 @@ public class KafkaProducerTest extends BaseKafkaTest {
     }
 
     @org.junit.Test
-    public void testConsumeOneByOne() throws InterruptedException {
+    public void testConsumeOneByOne() throws Exception {
         createTopic(TOPIC);
 
         final String[] TEST_MSGS = new String[] { "message - 1", "message - 2", "message - 3" };
@@ -47,7 +47,7 @@ public class KafkaProducerTest extends BaseKafkaTest {
     }
 
     @org.junit.Test
-    public void testConsumeListenerAfter() throws InterruptedException {
+    public void testConsumeListenerAfter() throws Exception {
         createTopic(TOPIC);
 
         final String[] TEST_MSGS = new String[] { "message - 1", "message - 2", "message - 3" };
@@ -74,7 +74,7 @@ public class KafkaProducerTest extends BaseKafkaTest {
     }
 
     @org.junit.Test
-    public void testConsumeListenerBefore() throws InterruptedException {
+    public void testConsumeListenerBefore() throws Exception {
         createTopic(TOPIC);
 
         final List<String> RECEIVED_MSG = new ArrayList<String>();

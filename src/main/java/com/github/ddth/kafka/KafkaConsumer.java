@@ -39,6 +39,7 @@ public class KafkaConsumer {
 
     private String zookeeperConnectString;
     private String consumerGroupId;
+    private boolean consumeFromBeginning = false;
 
     private ExecutorService executorService = Executors.newCachedThreadPool();
 
@@ -65,10 +66,117 @@ public class KafkaConsumer {
      *            format "host1:port,host2:port,host3:port" or
      *            "host1:port,host2:port,host3:port/chroot"
      * @param consumerGroupId
+     * @since 0.2.1
      */
     public KafkaConsumer(String zookeeperConnectString, String consumerGroupId) {
         this.zookeeperConnectString = zookeeperConnectString;
         this.consumerGroupId = consumerGroupId;
+    }
+
+    /**
+     * ZooKeeper connection string in form of {@code "host1:2182,host2:2182"} or
+     * {@code "host1:2182,host2:2182/<chroot>"}.
+     * 
+     * @return
+     * @since 0.2.1
+     */
+    public String getZookeeperConnectString() {
+        return zookeeperConnectString;
+    }
+
+    /**
+     * ZooKeeper connection string in form of {@code "host1:2182,host2:2182"} or
+     * {@code "host1:2182,host2:2182/<chroot>"}.
+     * 
+     * @param zookeeperConnectString
+     * @return
+     * @since 0.2.1
+     */
+    public KafkaConsumer setZookeeperConnectString(String zookeeperConnectString) {
+        this.zookeeperConnectString = zookeeperConnectString;
+        return this;
+    }
+
+    /**
+     * Each Kafka consumer is associated with a consumer group id.
+     * 
+     * <p>
+     * If two or more comsumers have a same group id, and consume messages from
+     * a same topic: messages will be consumed just like a queue: no message is
+     * consumed by more than one consumer. Which consumer consumes which message
+     * is undetermined.
+     * </p>
+     * 
+     * <p>
+     * If two or more comsumers with different group ids, and consume messages
+     * from a same topic: messages will be consumed just like publish-subscribe
+     * pattern: one message is consumed by all consumers.
+     * </p>
+     * 
+     * @return
+     * @since 0.2.1
+     */
+    public String getConsumerGroupId() {
+        return consumerGroupId;
+    }
+
+    /**
+     * Each Kafka consumer is associated with a consumer group id.
+     * 
+     * <p>
+     * If two or more comsumers have a same group id, and consume messages from
+     * a same topic: messages will be consumed just like a queue: no message is
+     * consumed by more than one consumer. Which consumer consumes which message
+     * is undetermined.
+     * </p>
+     * 
+     * <p>
+     * If two or more comsumers with different group ids, and consume messages
+     * from a same topic: messages will be consumed just like publish-subscribe
+     * pattern: one message is consumed by all consumers.
+     * </p>
+     * 
+     * @param consumerGroupId
+     * @return
+     * @since 0.2.1
+     */
+    public KafkaConsumer setConsumerGroupId(String consumerGroupId) {
+        this.consumerGroupId = consumerGroupId;
+        return this;
+    }
+
+    /**
+     * Consume messages from the beginning? See {@code auto.offset.reset} option
+     * at http://kafka.apache.org/08/configuration.html.
+     * 
+     * @return
+     * @since 0.2.1
+     */
+    public boolean isConsumeFromBeginning() {
+        return consumeFromBeginning;
+    }
+
+    /**
+     * Alias of {@link #isConsumeFromBeginning()}.
+     * 
+     * @return
+     * @since 0.2.1
+     */
+    public boolean getConsumeFromBeginning() {
+        return consumeFromBeginning;
+    }
+
+    /**
+     * Consume messages from the beginning? See {@code auto.offset.reset} option
+     * at http://kafka.apache.org/08/configuration.html.
+     * 
+     * @param consumeFromBeginning
+     * @return
+     * @since 0.2.1
+     */
+    public KafkaConsumer setConsumeFromBeginning(boolean consumeFromBeginning) {
+        this.consumeFromBeginning = consumeFromBeginning;
+        return this;
     }
 
     /**
@@ -100,7 +208,7 @@ public class KafkaConsumer {
     }
 
     private static ConsumerConfig createConsumerConfig(String zookeeperConnectString,
-            String consumerGroupId) {
+            String consumerGroupId, boolean consumeFromBeginning) {
         Properties props = new Properties();
         props.put("zookeeper.connect", zookeeperConnectString);
         props.put("group.id", consumerGroupId);
@@ -111,13 +219,13 @@ public class KafkaConsumer {
         props.put("auto.commit.interval.ms", "5000");
         props.put("socket.timeout.ms", "5000");
         props.put("fetch.wait.max.ms", "2000");
-        props.put("auto.offset.reset", "smallest");
+        props.put("auto.offset.reset", consumeFromBeginning ? "smallest" : "largest");
         return new ConsumerConfig(props);
     }
 
     private ConsumerConnector _createConsumer(String topic) {
         ConsumerConfig consumerConfig = createConsumerConfig(zookeeperConnectString,
-                consumerGroupId);
+                consumerGroupId, consumeFromBeginning);
         ConsumerConnector consumer = Consumer.createJavaConsumerConnector(consumerConfig);
         return consumer;
     }
