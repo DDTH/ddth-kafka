@@ -1,6 +1,11 @@
 ddth-kafka release notes
 ========================
 
+0.2.1.1 - 2014-07-29
+--------------------
+- When there are 2 or more `IKafkaMessageListener`s on same topic, each `IKafkaMessageListener.onMessage` is handled by a separated thread. This would boost the consumer's performance a bit. 
+
+
 0.2.1 - 2014-04-03
 ------------------
 - `auto.offset.reset` set to `largest` by default. Add option to consume messages from beginning. (See more: [http://kafka.apache.org/08/configuration.html](http://kafka.apache.org/08/configuration.html).
