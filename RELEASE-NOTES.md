@@ -1,6 +1,13 @@
 ddth-kafka release notes
 ========================
 
+1.0.0 - 2014-08-23
+------------------
+- `v1.0.0` released!
+- Breaking API changes: new class `KafkaClient` replaces both `KafkaConsumer` and `KafkaProducer`.
+- New class `KafkaMessage`, used by both sending and receiving.
+
+
 0.2.1.1 - 2014-07-29
 --------------------
 - When there are 2 or more `IKafkaMessageListener`s on same topic, each `IKafkaMessageListener.onMessage` is handled by a separated thread. This would boost the consumer's performance a bit. 

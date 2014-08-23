@@ -1,4 +1,4 @@
-package com.github.ddth.kafka;
+package com.github.ddth.kafka.qnd;
 
 import java.util.Properties;
 
@@ -10,6 +10,8 @@ import kafka.utils.ZKStringSerializer$;
 
 import org.I0Itec.zkclient.ZkClient;
 import org.apache.curator.test.TestingServer;
+
+import com.github.ddth.kafka.KafkaClient;
 
 public class BaseQndKafka {
 
@@ -35,35 +37,45 @@ public class BaseQndKafka {
         return kafkaServer;
     }
 
-    protected KafkaProducer newKafkaProducer(KafkaServerStartable kafkaServer,
-            KafkaProducer.Type type) throws Exception {
-        KafkaProducer kafkaProducer = new KafkaProducer(getKafkaBrokerString(kafkaServer), type);
-        kafkaProducer.init();
-        return kafkaProducer;
+    // protected KafkaProducer newKafkaProducer(KafkaServerStartable
+    // kafkaServer,
+    // KafkaProducer.Type type) throws Exception {
+    // KafkaProducer kafkaProducer = new
+    // KafkaProducer(getKafkaBrokerString(kafkaServer), type);
+    // kafkaProducer.init();
+    // return kafkaProducer;
+    // }
+    //
+    // protected KafkaConsumer newKafkaConsumer(TestingServer zkServer, String
+    // groupId)
+    // throws Exception {
+    // KafkaConsumer kafkaConsumer = new
+    // KafkaConsumer(getZkConnectString(zkServer), groupId);
+    // kafkaConsumer.init();
+    // return kafkaConsumer;
+    // }
+
+    protected KafkaClient newKafkaClient(TestingServer zkServer) throws Exception {
+        KafkaClient kafkaClient = new KafkaClient(getZkConnectString(zkServer));
+        kafkaClient.init();
+        return kafkaClient;
     }
 
-    protected KafkaConsumer newKafkaConsumer(TestingServer zkServer, String groupId)
-            throws Exception {
-        KafkaConsumer kafkaConsumer = new KafkaConsumer(getZkConnectString(zkServer), groupId);
-        kafkaConsumer.init();
-        return kafkaConsumer;
-    }
-
-    protected String getKafkaBrokerString(KafkaServerStartable kafkaServer) {
-        return String.format("localhost:%d", kafkaServer.serverConfig().port());
-    }
+    // protected String getKafkaBrokerString(KafkaServerStartable kafkaServer) {
+    // return String.format("localhost:%d", kafkaServer.serverConfig().port());
+    // }
 
     protected String getZkConnectString(TestingServer zkServer) {
         return zkServer.getConnectString();
     }
 
-    protected int getKafkaPort(KafkaServerStartable kafkaServer) {
-        return kafkaServer.serverConfig().port();
-    }
-
-    protected String getKafkaHost(KafkaServerStartable kafkaServer) {
-        return kafkaServer.serverConfig().hostName();
-    }
+    // protected int getKafkaPort(KafkaServerStartable kafkaServer) {
+    // return kafkaServer.serverConfig().port();
+    // }
+    //
+    // protected String getKafkaHost(KafkaServerStartable kafkaServer) {
+    // return kafkaServer.serverConfig().hostName();
+    // }
 
     private static KafkaConfig getKafkaConfig(final String zkConnectString) {
         scala.collection.Iterator<Properties> propsI = TestUtils.createBrokerConfigs(1).iterator();
@@ -72,7 +84,7 @@ public class BaseQndKafka {
         assert props.containsKey("zookeeper.connect");
         props.put("zookeeper.connect", zkConnectString);
         props.put("num.partitions", "2");
-        props.put("auto.create.topics.enable", "true");
+        props.put("auto.create.topics.enable", "false");
         return new KafkaConfig(props);
     }
 }

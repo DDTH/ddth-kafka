@@ -32,8 +32,7 @@ public abstract class BaseKafkaTest extends TestCase {
     protected KafkaServerStartable kafkaServer;
     protected TestingServer zkServer;
 
-    protected KafkaProducer kafkaProducer;
-    protected KafkaConsumer kafkaConsumer;
+    protected KafkaClient kafkaClient;
 
     protected void createTopic(String topic) throws Exception {
         ZkClient zkClient = new ZkClient(zkServer.getConnectString(), 30000, 30000,
@@ -70,22 +69,17 @@ public abstract class BaseKafkaTest extends TestCase {
         kafkaServer = new KafkaServerStartable(config);
         kafkaServer.startup();
 
-        // setup Producer
-        kafkaProducer = new KafkaProducer(getKafkaBrokerString());
-        kafkaProducer.init();
-
-        // setup Consumer
-        kafkaConsumer = new KafkaConsumer(getZkConnectString(), "my-group-id");
-        kafkaConsumer.setConsumeFromBeginning(true);
-        kafkaConsumer.init();
+        kafkaClient = new KafkaClient(getZkConnectString());
+        kafkaClient.init();
     }
 
     @After
     public void tearDown() throws IOException {
-        kafkaProducer.destroy();
-        kafkaConsumer.destroy();
+        kafkaClient.destroy();
+
         kafkaServer.shutdown();
         zkServer.stop();
+        zkServer.close();
     }
 
     protected String getKafkaBrokerString() {

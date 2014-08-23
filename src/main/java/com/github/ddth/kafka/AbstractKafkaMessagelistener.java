@@ -1,5 +1,6 @@
 package com.github.ddth.kafka;
 
+
 /**
  * Abstract implementation of {@link IKafkaMessageListener}.
  * 

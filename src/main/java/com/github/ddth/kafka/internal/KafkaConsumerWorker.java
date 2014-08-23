@@ -12,6 +12,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.github.ddth.kafka.IKafkaMessageListener;
+import com.github.ddth.kafka.KafkaMessage;
 
 public class KafkaConsumerWorker implements Runnable {
 
@@ -47,17 +48,15 @@ public class KafkaConsumerWorker implements Runnable {
                 }
             }
             if (msgListeners.size() > 0 && mm != null) {
-                final String topic = mm.topic();
-                final int partition = mm.partition();
-                final long offset = mm.offset();
-                final byte[] key = mm.key();
-                final byte[] message = mm.message();
+                final KafkaMessage message = new KafkaMessage(mm.topic(), mm.key(), mm.message());
+                message.partition(mm.partition());
+                message.offset(mm.offset());
                 final CountDownLatch countDownLatch = new CountDownLatch(msgListeners.size());
                 for (final IKafkaMessageListener listerner : messageListerners) {
                     Thread t = new Thread("Kafka-Consumer-Delivery") {
                         public void run() {
                             try {
-                                listerner.onMessage(topic, partition, offset, key, message);
+                                listerner.onMessage(message);
                             } catch (Exception e) {
                                 LOGGER.warn(e.getMessage(), e);
                             } finally {

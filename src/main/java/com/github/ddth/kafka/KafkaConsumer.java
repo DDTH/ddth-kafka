@@ -10,8 +10,6 @@ import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
@@ -31,70 +29,42 @@ import com.google.common.collect.Multimap;
  * A simple Kafka consumer client.
  * 
  * @author Thanh Ba Nguyen <bnguyen2k@gmail.com>
- * @since 0.1.0
+ * @since 1.0.0
  */
 public class KafkaConsumer {
 
     private final Logger LOGGER = LoggerFactory.getLogger(KafkaConsumer.class);
 
-    private String zookeeperConnectString;
     private String consumerGroupId;
     private boolean consumeFromBeginning = false;
 
-    private ExecutorService executorService = Executors.newCachedThreadPool();
-
     /* Mapping {topic -> consumer-connector} */
-    private ConcurrentMap<String, ConsumerConnector> topicConsumers = new ConcurrentHashMap<String, ConsumerConnector>();
+    private ConcurrentMap<String, ConsumerConnector> topicConsumerConnectors = new ConcurrentHashMap<String, ConsumerConnector>();
 
     /* Mapping {topic -> [kafka-message-listerners]} */
-    private Multimap<String, IKafkaMessageListener> topicListeners = HashMultimap.create();
+    private Multimap<String, IKafkaMessageListener> topicMessageListeners = HashMultimap.create();
 
     /* Mapping {topic -> [kafka-consumer-workers]} */
     private Multimap<String, KafkaConsumerWorker> topicConsumerWorkers = HashMultimap.create();
 
+    private KafkaClient kafkaClient;
+
     /**
      * Constructs an new {@link KafkaConsumer} object.
      */
-    public KafkaConsumer() {
-    }
-
-    /**
-     * Constructs a new {@link KafkaConsumer} object with specified ZooKeeper
-     * connection string and consumer group id
-     * 
-     * @param zookeeperConnectString
-     *            format "host1:port,host2:port,host3:port" or
-     *            "host1:port,host2:port,host3:port/chroot"
-     * @param consumerGroupId
-     * @since 0.2.1
-     */
-    public KafkaConsumer(String zookeeperConnectString, String consumerGroupId) {
-        this.zookeeperConnectString = zookeeperConnectString;
+    public KafkaConsumer(KafkaClient kafkaClient, String consumerGroupId) {
+        this.kafkaClient = kafkaClient;
         this.consumerGroupId = consumerGroupId;
     }
 
     /**
-     * ZooKeeper connection string in form of {@code "host1:2182,host2:2182"} or
-     * {@code "host1:2182,host2:2182/<chroot>"}.
-     * 
-     * @return
-     * @since 0.2.1
+     * Constructs an new {@link KafkaConsumer} object.
      */
-    public String getZookeeperConnectString() {
-        return zookeeperConnectString;
-    }
-
-    /**
-     * ZooKeeper connection string in form of {@code "host1:2182,host2:2182"} or
-     * {@code "host1:2182,host2:2182/<chroot>"}.
-     * 
-     * @param zookeeperConnectString
-     * @return
-     * @since 0.2.1
-     */
-    public KafkaConsumer setZookeeperConnectString(String zookeeperConnectString) {
-        this.zookeeperConnectString = zookeeperConnectString;
-        return this;
+    public KafkaConsumer(KafkaClient kafkaClient, String consumerGroupId,
+            boolean consumeFromBeginning) {
+        this.kafkaClient = kafkaClient;
+        this.consumerGroupId = consumerGroupId;
+        this.consumeFromBeginning = consumeFromBeginning;
     }
 
     /**
@@ -114,7 +84,6 @@ public class KafkaConsumer {
      * </p>
      * 
      * @return
-     * @since 0.2.1
      */
     public String getConsumerGroupId() {
         return consumerGroupId;
@@ -138,7 +107,6 @@ public class KafkaConsumer {
      * 
      * @param consumerGroupId
      * @return
-     * @since 0.2.1
      */
     public KafkaConsumer setConsumerGroupId(String consumerGroupId) {
         this.consumerGroupId = consumerGroupId;
@@ -150,7 +118,6 @@ public class KafkaConsumer {
      * at http://kafka.apache.org/08/configuration.html.
      * 
      * @return
-     * @since 0.2.1
      */
     public boolean isConsumeFromBeginning() {
         return consumeFromBeginning;
@@ -160,7 +127,6 @@ public class KafkaConsumer {
      * Alias of {@link #isConsumeFromBeginning()}.
      * 
      * @return
-     * @since 0.2.1
      */
     public boolean getConsumeFromBeginning() {
         return consumeFromBeginning;
@@ -172,7 +138,6 @@ public class KafkaConsumer {
      * 
      * @param consumeFromBeginning
      * @return
-     * @since 0.2.1
      */
     public KafkaConsumer setConsumeFromBeginning(boolean consumeFromBeginning) {
         this.consumeFromBeginning = consumeFromBeginning;
@@ -189,15 +154,7 @@ public class KafkaConsumer {
      * Destroying method.
      */
     public void destroy() {
-        if (executorService != null) {
-            try {
-                executorService.shutdownNow();
-            } catch (Exception e) {
-                LOGGER.warn(e.getMessage(), e);
-            }
-        }
-
-        Set<String> topicNames = new HashSet<String>(topicConsumers.keySet());
+        Set<String> topicNames = new HashSet<String>(topicConsumerConnectors.keySet());
         for (String topic : topicNames) {
             try {
                 removeConsumer(topic);
@@ -207,10 +164,9 @@ public class KafkaConsumer {
         }
     }
 
-    private static ConsumerConfig createConsumerConfig(String zookeeperConnectString,
-            String consumerGroupId, boolean consumeFromBeginning) {
+    private ConsumerConfig createConsumerConfig(String consumerGroupId, boolean consumeFromBeginning) {
         Properties props = new Properties();
-        props.put("zookeeper.connect", zookeeperConnectString);
+        props.put("zookeeper.connect", kafkaClient.getZookeeperConnectString());
         props.put("group.id", consumerGroupId);
         props.put("zookeeper.session.timeout.ms", "600000");
         props.put("zookeeper.connection.timeout.ms", "10000");
@@ -224,16 +180,18 @@ public class KafkaConsumer {
     }
 
     private ConsumerConnector _createConsumer(String topic) {
-        ConsumerConfig consumerConfig = createConsumerConfig(zookeeperConnectString,
-                consumerGroupId, consumeFromBeginning);
+        ConsumerConfig consumerConfig = createConsumerConfig(consumerGroupId, consumeFromBeginning);
         ConsumerConnector consumer = Consumer.createJavaConsumerConnector(consumerConfig);
         return consumer;
     }
 
     private void _initConsumerWorkers(String topic, ConsumerConnector consumer) {
         Map<String, Integer> topicCountMap = new HashMap<String, Integer>();
-        // TODO only 1 thread per topic?
-        topicCountMap.put(topic, new Integer(1));
+        int numPartitions = kafkaClient.getTopicNumPartitions(topic);
+        if (numPartitions < 1) {
+            numPartitions = 1;
+        }
+        topicCountMap.put(topic, new Integer(numPartitions));
         Map<String, List<KafkaStream<byte[], byte[]>>> consumerMap = consumer
                 .createMessageStreams(topicCountMap);
         List<KafkaStream<byte[], byte[]>> streams = consumerMap.get(topic);
@@ -243,18 +201,19 @@ public class KafkaConsumer {
              * Note: Changes to the returned collection will update the
              * underlying multimap, and vice versa.
              */
-            Collection<IKafkaMessageListener> messageListeners = topicListeners.get(topic);
+            Collection<IKafkaMessageListener> messageListeners = topicMessageListeners.get(topic);
             KafkaConsumerWorker worker = new KafkaConsumerWorker(stream, messageListeners);
             topicConsumerWorkers.put(topic, worker);
-            executorService.submit(worker);
+            kafkaClient.submitTask(worker);
         }
     }
 
     private ConsumerConnector initConsumer(String topic) {
-        ConsumerConnector consumer = topicConsumers.get(topic);
+        ConsumerConnector consumer = topicConsumerConnectors.get(topic);
         if (consumer == null) {
             consumer = _createConsumer(topic);
-            ConsumerConnector existingConsumer = topicConsumers.putIfAbsent(topic, consumer);
+            ConsumerConnector existingConsumer = topicConsumerConnectors.putIfAbsent(topic,
+                    consumer);
             if (existingConsumer != null) {
                 consumer.shutdown();
                 consumer = existingConsumer;
@@ -266,6 +225,7 @@ public class KafkaConsumer {
     }
 
     private void removeConsumer(String topic) {
+        // cleanup workers for a topic-consumer
         Collection<KafkaConsumerWorker> workers = topicConsumerWorkers.removeAll(topic);
         if (workers != null) {
             for (KafkaConsumerWorker worker : workers) {
@@ -277,11 +237,13 @@ public class KafkaConsumer {
             }
         }
 
+        // cleanup message-listeners
         @SuppressWarnings("unused")
-        Collection<IKafkaMessageListener> listeners = topicListeners.removeAll(topic);
+        Collection<IKafkaMessageListener> listeners = topicMessageListeners.removeAll(topic);
 
+        // finally, cleanup the consumer-connector
         try {
-            ConsumerConnector consumer = topicConsumers.remove(topic);
+            ConsumerConnector consumer = topicConsumerConnectors.remove(topic);
             if (consumer != null) {
                 consumer.shutdown();
             }
@@ -300,8 +262,8 @@ public class KafkaConsumer {
      *         may have been added already)
      */
     public boolean addMessageListener(String topic, IKafkaMessageListener messageListener) {
-        synchronized (topicListeners) {
-            if (!topicListeners.put(topic, messageListener)) {
+        synchronized (topicMessageListeners) {
+            if (!topicMessageListeners.put(topic, messageListener)) {
                 return false;
             }
             initConsumer(topic);
@@ -318,8 +280,8 @@ public class KafkaConsumer {
      *         may have no such listener added before)
      */
     public boolean removeMessageListener(String topic, IKafkaMessageListener messageListener) {
-        synchronized (topicListeners) {
-            if (!topicListeners.remove(topic, messageListener)) {
+        synchronized (topicMessageListeners) {
+            if (!topicMessageListeners.remove(topic, messageListener)) {
                 return false;
             }
             // Collection<IKafkaMessageListener> listeners =
@@ -343,18 +305,17 @@ public class KafkaConsumer {
      * @return
      * @throws InterruptedException
      */
-    public byte[] consume(String topic) throws InterruptedException {
-        final BlockingQueue<byte[]> buffer = new LinkedBlockingQueue<byte[]>();
+    public KafkaMessage consume(String topic) throws InterruptedException {
+        final BlockingQueue<KafkaMessage> buffer = new LinkedBlockingQueue<KafkaMessage>();
         final IKafkaMessageListener listener = new AbstractKafkaMessagelistener(topic, this) {
             @Override
-            public void onMessage(String topic, int partition, long offset, byte[] key,
-                    byte[] message) {
+            public void onMessage(KafkaMessage message) {
+                removeMessageListener(message.topic(), this);
                 buffer.add(message);
-                removeMessageListener(topic, this);
             }
         };
         addMessageListener(topic, listener);
-        byte[] result = buffer.take();
+        KafkaMessage result = buffer.take();
         removeMessageListener(topic, listener);
         return result;
     }
@@ -368,19 +329,18 @@ public class KafkaConsumer {
      * @return {@code null} if there is no message available
      * @throws InterruptedException
      */
-    public byte[] consume(String topic, long waitTime, TimeUnit waitTimeUnit)
+    public KafkaMessage consume(String topic, long waitTime, TimeUnit waitTimeUnit)
             throws InterruptedException {
-        final BlockingQueue<byte[]> buffer = new LinkedBlockingQueue<byte[]>();
+        final BlockingQueue<KafkaMessage> buffer = new LinkedBlockingQueue<KafkaMessage>();
         final IKafkaMessageListener listener = new AbstractKafkaMessagelistener(topic, this) {
             @Override
-            public void onMessage(String topic, int partition, long offset, byte[] key,
-                    byte[] message) {
+            public void onMessage(KafkaMessage message) {
+                removeMessageListener(message.topic(), this);
                 buffer.add(message);
-                removeMessageListener(topic, this);
             }
         };
         addMessageListener(topic, listener);
-        byte[] result = buffer.poll(waitTime, waitTimeUnit);
+        KafkaMessage result = buffer.poll(waitTime, waitTimeUnit);
         removeMessageListener(topic, listener);
         return result;
     }

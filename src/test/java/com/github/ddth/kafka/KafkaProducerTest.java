@@ -18,16 +18,16 @@ public class KafkaProducerTest extends BaseKafkaTest {
     }
 
     private final static String TOPIC = "topic_test";
+    private final String CONSUMER_GROUP_ID = "my-group-id";
 
     @org.junit.Test
-    public void testNewInstance() {
-        KafkaProducer producer = new KafkaProducer(getKafkaBrokerString(),
-                KafkaProducer.Type.SYNC_NO_ACK);
+    public void testNewInstance() throws Exception {
+        KafkaClient kafkaClient = new KafkaClient(getKafkaBrokerString());
         try {
-            assertNotNull(producer);
-            producer.init();
+            assertNotNull(kafkaClient);
+            kafkaClient.init();
         } finally {
-            producer.destroy();
+            kafkaClient.destroy();
         }
     }
 
@@ -36,13 +36,15 @@ public class KafkaProducerTest extends BaseKafkaTest {
         createTopic(TOPIC);
 
         final String[] TEST_MSGS = new String[] { "message - 1", "message - 2", "message - 3" };
-        for (String msg : TEST_MSGS) {
-            kafkaProducer.sendMessage(TOPIC, msg);
+        for (String content : TEST_MSGS) {
+            KafkaMessage msg = new KafkaMessage(TOPIC, content);
+            kafkaClient.sendMessage(msg);
         }
 
         for (int i = 0; i < TEST_MSGS.length; i++) {
-            byte[] message = kafkaConsumer.consume(TOPIC, 5000, TimeUnit.MILLISECONDS);
-            assertEquals(TEST_MSGS[i], new String(message));
+            KafkaMessage msg = kafkaClient.consumeMessage(CONSUMER_GROUP_ID, true, TOPIC, 5000,
+                    TimeUnit.MILLISECONDS);
+            assertEquals(TEST_MSGS[i], msg.contentAsString());
         }
     }
 
@@ -51,20 +53,20 @@ public class KafkaProducerTest extends BaseKafkaTest {
         createTopic(TOPIC);
 
         final String[] TEST_MSGS = new String[] { "message - 1", "message - 2", "message - 3" };
-        for (String msg : TEST_MSGS) {
-            kafkaProducer.sendMessage(TOPIC, msg);
+        for (String content : TEST_MSGS) {
+            KafkaMessage msg = new KafkaMessage(TOPIC, content);
+            kafkaClient.sendMessage(msg);
         }
 
         final List<String> RECEIVED_MSG = new ArrayList<String>();
         IKafkaMessageListener msgListener = new IKafkaMessageListener() {
             @Override
-            public void onMessage(String topic, int partition, long offset, byte[] key,
-                    byte[] message) {
-                String msgStr = message != null ? new String(message) : null;
+            public void onMessage(KafkaMessage message) {
+                String msgStr = message != null ? message.contentAsString() : null;
                 RECEIVED_MSG.add(msgStr);
             }
         };
-        kafkaConsumer.addMessageListener(TOPIC, msgListener);
+        kafkaClient.addMessageListener(CONSUMER_GROUP_ID, true, TOPIC, msgListener);
         Thread.sleep(5000);
 
         assertEquals(TEST_MSGS.length, RECEIVED_MSG.size());
@@ -80,17 +82,17 @@ public class KafkaProducerTest extends BaseKafkaTest {
         final List<String> RECEIVED_MSG = new ArrayList<String>();
         IKafkaMessageListener msgListener = new IKafkaMessageListener() {
             @Override
-            public void onMessage(String topic, int partition, long offset, byte[] key,
-                    byte[] message) {
-                String msgStr = message != null ? new String(message) : null;
+            public void onMessage(KafkaMessage message) {
+                String msgStr = message != null ? message.contentAsString() : null;
                 RECEIVED_MSG.add(msgStr);
             }
         };
-        kafkaConsumer.addMessageListener(TOPIC, msgListener);
+        kafkaClient.addMessageListener(CONSUMER_GROUP_ID, true, TOPIC, msgListener);
 
         final String[] TEST_MSGS = new String[] { "message - 1", "message - 2", "message - 3" };
-        for (String msg : TEST_MSGS) {
-            kafkaProducer.sendMessage(TOPIC, msg);
+        for (String content : TEST_MSGS) {
+            KafkaMessage msg = new KafkaMessage(TOPIC, content);
+            kafkaClient.sendMessage(msg);
         }
 
         Thread.sleep(2000);

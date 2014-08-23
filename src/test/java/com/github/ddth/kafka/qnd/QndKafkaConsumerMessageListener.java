@@ -1,10 +1,14 @@
-package com.github.ddth.kafka;
+package com.github.ddth.kafka.qnd;
 
 import java.util.Random;
 
 import kafka.server.KafkaServerStartable;
 
 import org.apache.curator.test.TestingServer;
+
+import com.github.ddth.kafka.IKafkaMessageListener;
+import com.github.ddth.kafka.KafkaClient;
+import com.github.ddth.kafka.KafkaMessage;
 
 public class QndKafkaConsumerMessageListener extends BaseQndKafka {
 
@@ -15,33 +19,31 @@ public class QndKafkaConsumerMessageListener extends BaseQndKafka {
         TestingServer zkServer = newZkServer();
         KafkaServerStartable kafkaServer = newKafkaServer(zkServer);
 
-        KafkaProducer kafkaProducer = newKafkaProducer(kafkaServer, KafkaProducer.Type.SYNC_NO_ACK);
-        kafkaProducer.init();
-
-        KafkaConsumer kafkaConsumer = newKafkaConsumer(zkServer, "my-group-id");
-        kafkaConsumer.init();
+        KafkaClient kafkaClient = newKafkaClient(zkServer);
+        final String consumerGroupId = "my-group-id";
 
         // create topic
-        String topic = "topic_test_" + rand.nextInt(timestamp);
+        final String topic = "topic_test_" + rand.nextInt(timestamp);
         createTopic(zkServer, topic);
 
-        kafkaConsumer.addMessageListener(topic, new IKafkaMessageListener() {
+        kafkaClient.addMessageListener(consumerGroupId, true, topic, new IKafkaMessageListener() {
             @Override
-            public void onMessage(String topic, int partition, long offset, byte[] key,
-                    byte[] message) {
-                System.out.print(topic + ": ");
-                System.out.println(message != null ? new String(message) : null);
+            public void onMessage(KafkaMessage message) {
+                System.out.println(message != null ? message.contentAsString() : null);
             }
         });
         Thread.sleep(2000);
         for (int i = 0; i < 10; i++) {
-            kafkaProducer.sendMessage(topic, "message - " + i + ": " + System.currentTimeMillis());
+            KafkaMessage msg = new KafkaMessage(topic, "message - " + i + ": "
+                    + System.currentTimeMillis());
+            kafkaClient.sendMessage(msg);
         }
         Thread.sleep(2000);
 
-        kafkaProducer.destroy();
-        kafkaConsumer.destroy();
+        kafkaClient.destroy();
+
         kafkaServer.shutdown();
+        zkServer.stop();
         zkServer.close();
     }
 
