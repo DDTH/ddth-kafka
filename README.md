@@ -33,7 +33,7 @@ Maven dependency:
 
 ## Usage ##
 
-** Initialize a Kafka client: **
+**Initialize a Kafka client:**
 
 ```java
 import com.github.ddth.kafka.KafkaClient;
@@ -43,7 +43,7 @@ KafkaClient kafkaClient = new KafkaClient(zookeeperConnString);
 kafkaClient.init();
 ```
 
-** Publish message(s): **
+**Publish message(s):**
 
 ```java
 import com.github.ddth.kafka.KafkaMessage;
@@ -59,7 +59,7 @@ KafkaMessage[] msgs = ...;
 kafkaClient.sendMessages(msgs);
 ```
 
-** Consume one single message: **
+**Consume one single message:**
 
 ```java
 final String consumerGroupId = "my-group-id";
@@ -73,7 +73,7 @@ KafkaMessage msg = consumer.consumeMessage(consumerGroupId, consumeFromBeginning
 KafkaMessage msg = consumer.consumeMessage(consumerGroupId, consumeFromBeginning, topic, 3, TimeUnit.SECONDS);
 ```
 
-** Consume messages using message listener: **
+**Consume messages using message listener:**
 
 ```java
 import com.github.ddth.kafka.IKafkaMessageListener;
@@ -90,7 +90,7 @@ kafkaClient.addMessageListener(consumerGroupId, consumeFromBeginning, topic, msg
 kafkaClient.removeMessageListener(consumerGroupId, topic, messageListener);
 ```
 
-** Destroy Kafka client when done: **
+**Destroy Kafka client when done:**
 
 ```java
 kafkaClient.destroy();
