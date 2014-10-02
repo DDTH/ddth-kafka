@@ -24,6 +24,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.github.ddth.commons.utils.DPathUtils;
+import com.github.ddth.kafka.internal.RandomPartitioner;
 import com.github.ddth.zookeeper.ZooKeeperClient;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
@@ -360,6 +361,8 @@ public class KafkaClient {
         props.put("metadata.broker.list", brokerList);
         props.put("key.serializer.class", StringEncoder.class.getName());
         // props.put("serializer.class", StringEncoder.class.getName());
+        props.put("partitioner.class", RandomPartitioner.class.getName());
+
         switch (type) {
         case FULL_ASYNC: {
             props.put("request.required.acks", "0");

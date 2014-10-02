@@ -1,6 +1,11 @@
 ddth-kafka release notes
 ========================
 
+1.0.1 - 2014-10-02
+------------------
+- `KafkaClient`: force to use a random partitioner (class `RandomPartitioner`) by default.
+
+
 1.0.0 - 2014-08-23
 ------------------
 - `v1.0.0` released!
