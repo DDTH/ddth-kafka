@@ -3,6 +3,7 @@ package com.github.ddth.kafka.internal;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import kafka.producer.Partitioner;
+import kafka.utils.VerifiableProperties;
 
 /**
  * A round-robin {@link Partitioner} implementation.
@@ -13,6 +14,15 @@ import kafka.producer.Partitioner;
 public class RoundRobinPartitioner implements Partitioner {
 
     private AtomicInteger counter = new AtomicInteger(0);
+
+    public RoundRobinPartitioner() {
+    }
+
+    public RoundRobinPartitioner(VerifiableProperties props) {
+    }
+
+    public void init(VerifiableProperties props) {
+    }
 
     /**
      * {@inheritDoc}
