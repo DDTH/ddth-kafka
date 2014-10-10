@@ -13,7 +13,7 @@ import kafka.utils.VerifiableProperties;
  */
 public class RandomPartitioner implements Partitioner {
 
-    private Random random = new Random(System.currentTimeMillis());
+    private static Random random = new Random(System.currentTimeMillis());
 
     public RandomPartitioner() {
     }
@@ -29,7 +29,7 @@ public class RandomPartitioner implements Partitioner {
      */
     @Override
     public int partition(Object key, int numPartitions) {
-        return random.nextInt(Integer.MAX_VALUE) % numPartitions;
+        return random.nextInt(numPartitions);
     }
 
 }

@@ -40,6 +40,8 @@ import com.google.common.cache.RemovalNotification;
  */
 public class KafkaClient {
 
+    private final static String EMPTY_STRING = "";
+
     /**
      * Producer type:
      * 
@@ -421,9 +423,9 @@ public class KafkaClient {
      */
     public void sendMessage(ProducerType type, KafkaMessage message) {
         Producer<String, byte[]> producer = getProducer(type);
-        KeyedMessage<String, byte[]> data = message.key() != null ? new KeyedMessage<String, byte[]>(
-                message.topic(), message.key(), message.content())
-                : new KeyedMessage<String, byte[]>(message.topic(), message.content());
+        String key = message.key() != null ? message.key() : EMPTY_STRING;
+        KeyedMessage<String, byte[]> data = new KeyedMessage<String, byte[]>(message.topic(), key,
+                message.content());
         producer.send(data);
     }
 
@@ -446,9 +448,9 @@ public class KafkaClient {
         Producer<String, byte[]> producer = getProducer(type);
         List<KeyedMessage<String, byte[]>> data = new ArrayList<KeyedMessage<String, byte[]>>();
         for (KafkaMessage message : messages) {
-            KeyedMessage<String, byte[]> _data = message.key() != null ? new KeyedMessage<String, byte[]>(
-                    message.topic(), message.key(), message.content())
-                    : new KeyedMessage<String, byte[]>(message.topic(), message.content());
+            String key = message.key() != null ? message.key() : EMPTY_STRING;
+            KeyedMessage<String, byte[]> _data = new KeyedMessage<String, byte[]>(message.topic(),
+                    key, message.content());
             data.add(_data);
         }
         producer.send(data);

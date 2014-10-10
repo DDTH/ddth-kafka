@@ -1,6 +1,11 @@
 ddth-kafka release notes
 ========================
 
+1.0.3 - 2014-10-10
+------------------
+- Bug fixed & change: when message's key is empty use empty string (`""`) instead to make sure custom partitioner works.
+
+
 1.0.2 - 2014-10-03
 ------------------
 - Bug fixed.
