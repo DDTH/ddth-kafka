@@ -47,12 +47,17 @@ public class KafkaConsumerWorker implements Runnable {
                     mm = it.next();
                 }
             }
+
             if (msgListeners.size() > 0 && mm != null) {
-                final KafkaMessage message = new KafkaMessage(mm.topic(), mm.key(), mm.message());
-                message.partition(mm.partition());
-                message.offset(mm.offset());
+                /**
+                 * Got a message, convert it to {@link KafkaMessage} object.
+                 */
+                final KafkaMessage message = new KafkaMessage(mm);
+
                 final CountDownLatch countDownLatch = new CountDownLatch(msgListeners.size());
-                for (final IKafkaMessageListener listerner : messageListerners) {
+                for (final IKafkaMessageListener listerner : msgListeners) {
+                    // Delivery the consumed message to n-listeners
+                    // asynchronously
                     Thread t = new Thread("Kafka-Consumer-Delivery") {
                         public void run() {
                             try {

@@ -1,7 +1,9 @@
 package com.github.ddth.kafka;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 import junit.framework.Test;
@@ -22,29 +24,30 @@ public class KafkaProducerTest extends BaseKafkaTest {
 
     @org.junit.Test
     public void testNewInstance() throws Exception {
-        KafkaClient kafkaClient = new KafkaClient(getKafkaBrokerString());
-        try {
-            assertNotNull(kafkaClient);
-            kafkaClient.init();
-        } finally {
-            kafkaClient.destroy();
-        }
+        assertNotNull(kafkaClient);
     }
 
     @org.junit.Test
     public void testConsumeOneByOne() throws Exception {
         createTopic(TOPIC);
-
-        final String[] TEST_MSGS = new String[] { "message - 1", "message - 2", "message - 3" };
+        final Set<String> TEST_MSGS = new HashSet<String>(Arrays.asList("message - 0",
+                "message - 1", "message - 2", "message - 3", "message - 4", "message - 5",
+                "message - 6", "message - 7", "message - 8", "message - 9"));
+        System.out.println("testConsumeOneByOne()====================");
         for (String content : TEST_MSGS) {
-            KafkaMessage msg = new KafkaMessage(TOPIC, content);
-            kafkaClient.sendMessage(msg);
+            KafkaMessage msg = new KafkaMessage(TOPIC, content, content);
+            Future<KafkaMessage> resultMgs = kafkaClient.sendMessage(msg);
+            msg = resultMgs.get(1000, TimeUnit.MILLISECONDS);
+            assertNotNull(msg);
+            System.out.println(content + "\t" + msg.partition() + " / " + msg.offset());
         }
 
-        for (int i = 0; i < TEST_MSGS.length; i++) {
+        for (int i = 0, n = TEST_MSGS.size(); i < n; i++) {
             KafkaMessage msg = kafkaClient.consumeMessage(CONSUMER_GROUP_ID, true, TOPIC, 5000,
                     TimeUnit.MILLISECONDS);
-            assertEquals(TEST_MSGS[i], msg.contentAsString());
+            String strMsg = msg.contentAsString();
+            assertTrue(TEST_MSGS.contains(strMsg));
+            TEST_MSGS.remove(strMsg);
         }
     }
 
@@ -52,13 +55,19 @@ public class KafkaProducerTest extends BaseKafkaTest {
     public void testConsumeListenerAfter() throws Exception {
         createTopic(TOPIC);
 
-        final String[] TEST_MSGS = new String[] { "message - 1", "message - 2", "message - 3" };
+        final Set<String> TEST_MSGS = new HashSet<String>(Arrays.asList("message - 0",
+                "message - 1", "message - 2", "message - 3", "message - 4", "message - 5",
+                "message - 6", "message - 7", "message - 8", "message - 9"));
+        System.out.println("testConsumeListenerAfter()====================");
         for (String content : TEST_MSGS) {
             KafkaMessage msg = new KafkaMessage(TOPIC, content);
-            kafkaClient.sendMessage(msg);
+            Future<KafkaMessage> resultMgs = kafkaClient.sendMessage(msg);
+            msg = resultMgs.get(1000, TimeUnit.MILLISECONDS);
+            assertNotNull(msg);
+            System.out.println(content + "\t" + msg.partition() + " / " + msg.offset());
         }
 
-        final List<String> RECEIVED_MSG = new ArrayList<String>();
+        final Set<String> RECEIVED_MSG = new HashSet<String>();
         IKafkaMessageListener msgListener = new IKafkaMessageListener() {
             @Override
             public void onMessage(KafkaMessage message) {
@@ -69,17 +78,15 @@ public class KafkaProducerTest extends BaseKafkaTest {
         kafkaClient.addMessageListener(CONSUMER_GROUP_ID, true, TOPIC, msgListener);
         Thread.sleep(5000);
 
-        assertEquals(TEST_MSGS.length, RECEIVED_MSG.size());
-        for (int i = 0; i < TEST_MSGS.length; i++) {
-            assertEquals(TEST_MSGS[i], RECEIVED_MSG.get(i));
-        }
+        assertEquals(TEST_MSGS.size(), RECEIVED_MSG.size());
+        assertEquals(TEST_MSGS, RECEIVED_MSG);
     }
 
     @org.junit.Test
     public void testConsumeListenerBefore() throws Exception {
         createTopic(TOPIC);
 
-        final List<String> RECEIVED_MSG = new ArrayList<String>();
+        final Set<String> RECEIVED_MSG = new HashSet<String>();
         IKafkaMessageListener msgListener = new IKafkaMessageListener() {
             @Override
             public void onMessage(KafkaMessage message) {
@@ -89,17 +96,21 @@ public class KafkaProducerTest extends BaseKafkaTest {
         };
         kafkaClient.addMessageListener(CONSUMER_GROUP_ID, true, TOPIC, msgListener);
 
-        final String[] TEST_MSGS = new String[] { "message - 1", "message - 2", "message - 3" };
+        final Set<String> TEST_MSGS = new HashSet<String>(Arrays.asList("message - 0",
+                "message - 1", "message - 2", "message - 3", "message - 4", "message - 5",
+                "message - 6", "message - 7", "message - 8", "message - 9"));
+        System.out.println("testConsumeListenerBefore()====================");
         for (String content : TEST_MSGS) {
             KafkaMessage msg = new KafkaMessage(TOPIC, content);
-            kafkaClient.sendMessage(msg);
+            Future<KafkaMessage> resultMgs = kafkaClient.sendMessage(msg);
+            msg = resultMgs.get(1000, TimeUnit.MILLISECONDS);
+            assertNotNull(msg);
+            System.out.println(content + "\t" + msg.partition() + " / " + msg.offset());
         }
 
         Thread.sleep(2000);
 
-        assertEquals(TEST_MSGS.length, RECEIVED_MSG.size());
-        for (int i = 0; i < TEST_MSGS.length; i++) {
-            assertEquals(TEST_MSGS[i], RECEIVED_MSG.get(i));
-        }
+        assertEquals(TEST_MSGS.size(), RECEIVED_MSG.size());
+        assertEquals(TEST_MSGS, RECEIVED_MSG);
     }
 }

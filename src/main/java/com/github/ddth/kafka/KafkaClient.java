@@ -12,19 +12,21 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.FutureTask;
 import java.util.concurrent.TimeUnit;
 
-import kafka.javaapi.producer.Producer;
-import kafka.producer.KeyedMessage;
-import kafka.producer.ProducerConfig;
-import kafka.serializer.StringEncoder;
-
 import org.apache.commons.lang3.StringUtils;
+import org.apache.kafka.clients.producer.KafkaProducer;
+import org.apache.kafka.clients.producer.ProducerConfig;
+import org.apache.kafka.clients.producer.ProducerRecord;
+import org.apache.kafka.clients.producer.RecordMetadata;
+import org.apache.kafka.common.serialization.ByteArraySerializer;
+import org.apache.kafka.common.serialization.StringSerializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.github.ddth.commons.utils.DPathUtils;
-import com.github.ddth.kafka.internal.RandomPartitioner;
+import com.github.ddth.kafka.internal.KafkaConsumer;
 import com.github.ddth.zookeeper.ZooKeeperClient;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
@@ -33,14 +35,12 @@ import com.google.common.cache.RemovalListener;
 import com.google.common.cache.RemovalNotification;
 
 /**
- * A simple Kafka client.
+ * A simple Kafka client (producer & consumer).
  * 
  * @author Thanh Ba Nguyen <bnguyen2k@gmail.com>
  * @since 1.0.0
  */
 public class KafkaClient {
-
-    private final static String EMPTY_STRING = "";
 
     /**
      * Producer type:
@@ -61,7 +61,7 @@ public class KafkaClient {
         FULL_ASYNC, SYNC_NO_ACK, SYNC_LEADER_ACK, SYNC_ALL_ACKS;
     }
 
-    public final static ProducerType DEFAULT_PRODUCER_TYPE = ProducerType.SYNC_NO_ACK;
+    public final static ProducerType DEFAULT_PRODUCER_TYPE = ProducerType.SYNC_LEADER_ACK;
 
     private final Logger LOGGER = LoggerFactory.getLogger(KafkaClient.class);
 
@@ -122,11 +122,13 @@ public class KafkaClient {
      */
     public void destroy() {
         try {
-            if (cacheProducers != null) {
-                cacheProducers.invalidateAll();
+            if (cacheJavaProducers != null) {
+                cacheJavaProducers.invalidateAll();
             }
         } catch (Exception e) {
             LOGGER.warn(e.getMessage(), e);
+        } finally {
+            cacheJavaProducers = null;
         }
 
         if (cacheConsumers != null) {
@@ -145,6 +147,8 @@ public class KafkaClient {
                 executorService.shutdownNow();
             } catch (Exception e) {
                 LOGGER.warn(e.getMessage(), e);
+            } finally {
+                executorService = null;
             }
         }
 
@@ -187,23 +191,13 @@ public class KafkaClient {
     /*----------------------------------------------------------------------*/
     /* CONSUMER */
     /*----------------------------------------------------------------------*/
+    /* Mapping {consumer-group-id -> KafkaConsumer} */
     private ConcurrentMap<String, KafkaConsumer> cacheConsumers = new ConcurrentHashMap<String, KafkaConsumer>();
 
     private KafkaConsumer _newKafkaConsumer(String consumerGroupId, boolean consumeFromBeginning) {
         KafkaConsumer kafkaConsumer = new KafkaConsumer(this, consumerGroupId, consumeFromBeginning);
         kafkaConsumer.init();
         return kafkaConsumer;
-    }
-
-    /**
-     * Obtains {@link KafkaConsumer} instance for the specified
-     * consumer-group-id.
-     * 
-     * @param consumerGroupId
-     * @return the existing {@link KafkaConsumer} or {@code null} if not exist
-     */
-    protected KafkaConsumer getKafkaConsumer(String consumerGroupId) {
-        return cacheConsumers.get(consumerGroupId);
     }
 
     /**
@@ -218,7 +212,7 @@ public class KafkaClient {
      * @param consumeFromBeginning
      * @return
      */
-    protected KafkaConsumer getKafkaConsumer(String consumerGroupId, boolean consumeFromBeginning) {
+    private KafkaConsumer getKafkaConsumer(String consumerGroupId, boolean consumeFromBeginning) {
         KafkaConsumer kafkaConsumer = cacheConsumers.get(consumerGroupId);
         if (kafkaConsumer == null) {
             kafkaConsumer = _newKafkaConsumer(consumerGroupId, consumeFromBeginning);
@@ -256,7 +250,7 @@ public class KafkaClient {
     }
 
     /**
-     * Consumes one message from a topic, wait up to specified wait time.
+     * Consumes one message from a topic, wait up to specified wait-time.
      * 
      * <p>
      * Note: {@code consumeFromBeginning} is ignored if there is an existing
@@ -309,7 +303,7 @@ public class KafkaClient {
      */
     public boolean removeMessageListener(String consumerGroupId, String topic,
             IKafkaMessageListener messageListener) {
-        KafkaConsumer kafkaConsumer = getKafkaConsumer(consumerGroupId);
+        KafkaConsumer kafkaConsumer = cacheConsumers.get(consumerGroupId);
         return kafkaConsumer != null ? kafkaConsumer.removeMessageListener(topic, messageListener)
                 : false;
     }
@@ -319,18 +313,18 @@ public class KafkaClient {
     /*----------------------------------------------------------------------*/
     /* PRODUCER */
     /*----------------------------------------------------------------------*/
-    private LoadingCache<ProducerType, Producer<String, byte[]>> cacheProducers = CacheBuilder
+    private LoadingCache<ProducerType, KafkaProducer<String, byte[]>> cacheJavaProducers = CacheBuilder
             .newBuilder().expireAfterAccess(3600, TimeUnit.SECONDS)
-            .removalListener(new RemovalListener<ProducerType, Producer<String, byte[]>>() {
+            .removalListener(new RemovalListener<ProducerType, KafkaProducer<String, byte[]>>() {
                 @Override
                 public void onRemoval(
-                        RemovalNotification<ProducerType, Producer<String, byte[]>> entry) {
+                        RemovalNotification<ProducerType, KafkaProducer<String, byte[]>> entry) {
                     entry.getValue().close();
                 }
-            }).build(new CacheLoader<ProducerType, Producer<String, byte[]>>() {
+            }).build(new CacheLoader<ProducerType, KafkaProducer<String, byte[]>>() {
                 @Override
-                public Producer<String, byte[]> load(ProducerType type) throws Exception {
-                    return _newProducer(type);
+                public KafkaProducer<String, byte[]> load(ProducerType type) throws Exception {
+                    return _newJavaProducer(type);
                 }
             });
 
@@ -352,55 +346,71 @@ public class KafkaClient {
     }
 
     /**
-     * Creates a new producer object.
+     * Creates a new Java producer object.
      * 
      * @param type
      * @return
      */
-    private Producer<String, byte[]> _newProducer(ProducerType type) {
-        Properties props = new Properties();
-        String brokerList = getBrokerList();
-        props.put("metadata.broker.list", brokerList);
-        props.put("key.serializer.class", StringEncoder.class.getName());
-        // props.put("serializer.class", StringEncoder.class.getName());
-        props.put("partitioner.class", RandomPartitioner.class.getName());
+    private KafkaProducer<String, byte[]> _newJavaProducer(ProducerType type) {
+        Properties producerConfigs = new Properties();
+        producerConfigs.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, getBrokerList());
+        producerConfigs.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG,
+                StringSerializer.class.getName());
+        producerConfigs.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG,
+                ByteArraySerializer.class.getName());
+        // producerConfigs.put("partitioner.class",
+        // RandomPartitioner.class.getName());
 
+        // 4mb buffer
+        producerConfigs.put(ProducerConfig.BUFFER_MEMORY_CONFIG, 4 * 1024 * 1024);
+        producerConfigs.put(ProducerConfig.BLOCK_ON_BUFFER_FULL_CONFIG, "true");
+        // ack timeout 10 seconds
+        producerConfigs.put(ProducerConfig.TIMEOUT_CONFIG, "10000");
+        // metadata fetch timeout: 10 seconds
+        producerConfigs.put(ProducerConfig.METADATA_FETCH_TIMEOUT_CONFIG, "10000");
+
+        /*
+         * As of Kafka 0.8.2 the Java producer seems not supporting
+         * "producer.type"!
+         */
         switch (type) {
         case FULL_ASYNC: {
-            props.put("request.required.acks", "0");
-            props.put("producer.type", "async");
+            producerConfigs.put(ProducerConfig.ACKS_CONFIG, "0");
+            // producerConfigs.put("request.required.acks", "0");
+            producerConfigs.put("producer.type", "async");
             break;
         }
         case SYNC_LEADER_ACK: {
-            props.put("request.required.acks", "1");
-            props.put("producer.type", "sync");
+            producerConfigs.put(ProducerConfig.ACKS_CONFIG, "1");
+            // producerConfigs.put("request.required.acks", "1");
+            producerConfigs.put("producer.type", "sync");
             break;
         }
         case SYNC_ALL_ACKS: {
-            props.put("request.required.acks", "-1");
-            props.put("producer.type", "sync");
+            producerConfigs.put(ProducerConfig.ACKS_CONFIG, "all");
+            // producerConfigs.put("request.required.acks", "-1");
+            producerConfigs.put("producer.type", "sync");
             break;
         }
         case SYNC_NO_ACK:
         default: {
-            props.put("request.required.acks", "0");
-            props.put("producer.type", "sync");
+            producerConfigs.put("request.required.acks", "0");
+            producerConfigs.put("producer.type", "sync");
             break;
         }
         }
-        ProducerConfig config = new ProducerConfig(props);
-        return new Producer<String, byte[]>(config);
+        return new KafkaProducer<String, byte[]>(producerConfigs);
     }
 
     /**
-     * Gets a producer instance of a specific type.
+     * Gets a Java producer of a specific type.
      * 
      * @param type
      * @return
      */
-    private Producer<String, byte[]> getProducer(ProducerType type) {
+    private KafkaProducer<String, byte[]> getJavaProducer(ProducerType type) {
         try {
-            return cacheProducers.get(type);
+            return cacheJavaProducers.get(type);
         } catch (ExecutionException e) {
             throw new KafkaException(e.getCause());
         }
@@ -410,9 +420,10 @@ public class KafkaClient {
      * Sends a message, with default {@link ProducerType}.
      * 
      * @param message
+     * @return a copy of message filled with partition number and offset
      */
-    public void sendMessage(KafkaMessage message) {
-        sendMessage(DEFAULT_PRODUCER_TYPE, message);
+    public Future<KafkaMessage> sendMessage(KafkaMessage message) {
+        return sendMessage(DEFAULT_PRODUCER_TYPE, message);
     }
 
     /**
@@ -420,40 +431,32 @@ public class KafkaClient {
      * 
      * @param type
      * @param message
+     * @return a copy of message filled with partition number and offset
      */
-    public void sendMessage(ProducerType type, KafkaMessage message) {
-        Producer<String, byte[]> producer = getProducer(type);
-        String key = message.key() != null ? message.key() : EMPTY_STRING;
-        KeyedMessage<String, byte[]> data = new KeyedMessage<String, byte[]>(message.topic(), key,
-                message.content());
-        producer.send(data);
-    }
+    public Future<KafkaMessage> sendMessage(final ProducerType type, final KafkaMessage message) {
+        KafkaProducer<String, byte[]> producer = getJavaProducer(type);
 
-    /**
-     * Sends messages, with default {@link ProducerType}.
-     * 
-     * @param messages
-     */
-    public void sendMessages(KafkaMessage[] messages) {
-        sendMessages(DEFAULT_PRODUCER_TYPE, messages);
+        String key = message.key();
+        String topic = message.topic();
+        byte[] value = message.content();
+        ProducerRecord<String, byte[]> record = StringUtils.isEmpty(key) ? new ProducerRecord<String, byte[]>(
+                topic, value) : new ProducerRecord<String, byte[]>(topic, key, value);
+        final Future<RecordMetadata> fRecordMetadata = producer.send(record);
+        FutureTask<KafkaMessage> result = new FutureTask<KafkaMessage>(
+                new Callable<KafkaMessage>() {
+                    @Override
+                    public KafkaMessage call() throws Exception {
+                        RecordMetadata recordMetadata = fRecordMetadata.get();
+                        if (recordMetadata != null) {
+                            KafkaMessage kafkaMessage = new KafkaMessage(message);
+                            kafkaMessage.partition(recordMetadata.partition());
+                            kafkaMessage.offset(recordMetadata.offset());
+                            return kafkaMessage;
+                        }
+                        return null;
+                    }
+                });
+        submitTask(result);
+        return result;
     }
-
-    /**
-     * Sends messages, specifying {@link ProducerType}.
-     * 
-     * @param type
-     * @param messages
-     */
-    public void sendMessages(ProducerType type, KafkaMessage[] messages) {
-        Producer<String, byte[]> producer = getProducer(type);
-        List<KeyedMessage<String, byte[]>> data = new ArrayList<KeyedMessage<String, byte[]>>();
-        for (KafkaMessage message : messages) {
-            String key = message.key() != null ? message.key() : EMPTY_STRING;
-            KeyedMessage<String, byte[]> _data = new KeyedMessage<String, byte[]>(message.topic(),
-                    key, message.content());
-            data.add(_data);
-        }
-        producer.send(data);
-    }
-    /*----------------------------------------------------------------------*/
 }

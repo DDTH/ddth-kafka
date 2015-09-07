@@ -3,6 +3,8 @@ package com.github.ddth.kafka;
 import java.io.Serializable;
 import java.nio.charset.Charset;
 
+import kafka.message.MessageAndMetadata;
+
 import org.apache.commons.lang3.builder.EqualsBuilder;
 import org.apache.commons.lang3.builder.HashCodeBuilder;
 import org.apache.commons.lang3.builder.ToStringBuilder;
@@ -59,6 +61,34 @@ public class KafkaMessage implements Serializable {
         topic(topic);
         key(key);
         content(content);
+    }
+
+    /**
+     * Constructs a new {@link KafkaMessage} from a {@link MessageAndMetadata}
+     * object.
+     * 
+     * @param mm
+     * @since 1.1.0
+     */
+    public KafkaMessage(MessageAndMetadata<byte[], byte[]> mm) {
+        topic(mm.topic());
+        key(mm.key());
+        content(mm.message());
+        partition(mm.partition());
+        offset(mm.offset());
+    }
+
+    /**
+     * Constructs a new {@link KafkaMessage} from another {@link KafkaMessage}.
+     * 
+     * @param another
+     */
+    public KafkaMessage(KafkaMessage another) {
+        topic(another.topic());
+        key(another.key());
+        content(another.content());
+        partition(another.partition());
+        offset(another.offset());
     }
 
     public String topic() {
@@ -156,6 +186,8 @@ public class KafkaMessage implements Serializable {
             eq.append(topic, other.topic);
             eq.append(key, other.key);
             eq.append(content, other.content);
+            eq.append(partition, other.partition);
+            eq.append(offset, other.offset);
         }
         return false;
     }

@@ -1,4 +1,4 @@
-package com.github.ddth.kafka;
+package com.github.ddth.kafka.internal;
 
 import java.util.Collection;
 import java.util.HashMap;
@@ -21,12 +21,24 @@ import kafka.javaapi.consumer.ConsumerConnector;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.github.ddth.kafka.internal.KafkaConsumerWorker;
+import com.github.ddth.kafka.AbstractKafkaMessagelistener;
+import com.github.ddth.kafka.IKafkaMessageListener;
+import com.github.ddth.kafka.KafkaClient;
+import com.github.ddth.kafka.KafkaMessage;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
 
 /**
  * A simple Kafka consumer client.
+ * 
+ * <p>
+ * Each {@link KafkaConsumer} is associated with a unique consumer-group-id.
+ * </p>
+ * 
+ * <p>
+ * One single {@link KafkaConsumer} is used to consume messages from multiple
+ * topics.
+ * </p>
  * 
  * @author Thanh Ba Nguyen <bnguyen2k@gmail.com>
  * @since 1.0.0
@@ -71,14 +83,14 @@ public class KafkaConsumer {
      * Each Kafka consumer is associated with a consumer group id.
      * 
      * <p>
-     * If two or more comsumers have a same group id, and consume messages from
+     * If two or more consumers have a same group-id, and consume messages from
      * a same topic: messages will be consumed just like a queue: no message is
      * consumed by more than one consumer. Which consumer consumes which message
      * is undetermined.
      * </p>
      * 
      * <p>
-     * If two or more comsumers with different group ids, and consume messages
+     * If two or more consumers with different group-ids, and consume messages
      * from a same topic: messages will be consumed just like publish-subscribe
      * pattern: one message is consumed by all consumers.
      * </p>
@@ -90,20 +102,7 @@ public class KafkaConsumer {
     }
 
     /**
-     * Each Kafka consumer is associated with a consumer group id.
-     * 
-     * <p>
-     * If two or more comsumers have a same group id, and consume messages from
-     * a same topic: messages will be consumed just like a queue: no message is
-     * consumed by more than one consumer. Which consumer consumes which message
-     * is undetermined.
-     * </p>
-     * 
-     * <p>
-     * If two or more comsumers with different group ids, and consume messages
-     * from a same topic: messages will be consumed just like publish-subscribe
-     * pattern: one message is consumed by all consumers.
-     * </p>
+     * See {@link #getConsumerGroupId()}.
      * 
      * @param consumerGroupId
      * @return
@@ -157,14 +156,21 @@ public class KafkaConsumer {
         Set<String> topicNames = new HashSet<String>(topicConsumerConnectors.keySet());
         for (String topic : topicNames) {
             try {
-                removeConsumer(topic);
+                _removeConsumer(topic);
             } catch (Exception e) {
                 LOGGER.warn(e.getMessage(), e);
             }
         }
     }
 
-    private ConsumerConfig createConsumerConfig(String consumerGroupId, boolean consumeFromBeginning) {
+    /**
+     * Builds consumer configurations.
+     * 
+     * @param consumerGroupId
+     * @param consumeFromBeginning
+     * @return
+     */
+    private ConsumerConfig _buildConsumerConfig(String consumerGroupId, boolean consumeFromBeginning) {
         Properties props = new Properties();
         props.put("zookeeper.connect", kafkaClient.getZookeeperConnectString());
         props.put("group.id", consumerGroupId);
@@ -172,33 +178,49 @@ public class KafkaConsumer {
         props.put("zookeeper.connection.timeout.ms", "10000");
         props.put("zookeeper.sync.time.ms", "2000");
         props.put("auto.commit.enable", "true");
-        props.put("auto.commit.interval.ms", "5000");
+        props.put("auto.commit.interval.ms", "1000");
         props.put("socket.timeout.ms", "5000");
         props.put("fetch.wait.max.ms", "2000");
         props.put("auto.offset.reset", consumeFromBeginning ? "smallest" : "largest");
         return new ConsumerConfig(props);
     }
 
+    /**
+     * Creates a consumer for a topic.
+     * 
+     * @param topic
+     * @return
+     */
     private ConsumerConnector _createConsumer(String topic) {
-        ConsumerConfig consumerConfig = createConsumerConfig(consumerGroupId, consumeFromBeginning);
+        ConsumerConfig consumerConfig = _buildConsumerConfig(consumerGroupId, consumeFromBeginning);
         ConsumerConnector consumer = Consumer.createJavaConsumerConnector(consumerConfig);
         return consumer;
     }
 
-    private void _initConsumerWorkers(String topic, ConsumerConnector consumer) {
+    /**
+     * Prepares worker(s) to consume messages from a topic.
+     * 
+     * @param topic
+     * @param singleThread
+     *            if {@code true}, always create one thread to consume message,
+     *            {@code false} will create number of threads equals to number
+     *            of topic's partitions
+     * @param consumer
+     */
+    private void _initConsumerWorkers(String topic, boolean singleThread, ConsumerConnector consumer) {
         Map<String, Integer> topicCountMap = new HashMap<String, Integer>();
-        int numPartitions = kafkaClient.getTopicNumPartitions(topic);
-        if (numPartitions < 1) {
-            numPartitions = 1;
+        int numThreads = kafkaClient.getTopicNumPartitions(topic);
+        if (numThreads < 1 || singleThread) {
+            numThreads = 1;
         }
-        topicCountMap.put(topic, new Integer(numPartitions));
+        topicCountMap.put(topic, new Integer(numThreads));
         Map<String, List<KafkaStream<byte[], byte[]>>> consumerMap = consumer
                 .createMessageStreams(topicCountMap);
         List<KafkaStream<byte[], byte[]>> streams = consumerMap.get(topic);
         for (KafkaStream<byte[], byte[]> stream : streams) {
             /* Note: Multimap.get() never returns null */
             /*
-             * Note: Changes to the returned collection will update the
+             * Note: Changes make to the returned collection will update the
              * underlying multimap, and vice versa.
              */
             Collection<IKafkaMessageListener> messageListeners = topicMessageListeners.get(topic);
@@ -208,7 +230,7 @@ public class KafkaConsumer {
         }
     }
 
-    private ConsumerConnector initConsumer(String topic) {
+    private ConsumerConnector _initConsumer(String topic, boolean singleThread) {
         ConsumerConnector consumer = topicConsumerConnectors.get(topic);
         if (consumer == null) {
             consumer = _createConsumer(topic);
@@ -218,13 +240,13 @@ public class KafkaConsumer {
                 consumer.shutdown();
                 consumer = existingConsumer;
             } else {
-                _initConsumerWorkers(topic, consumer);
+                _initConsumerWorkers(topic, singleThread, consumer);
             }
         }
         return consumer;
     }
 
-    private void removeConsumer(String topic) {
+    private void _removeConsumer(String topic) {
         // cleanup workers for a topic-consumer
         Collection<KafkaConsumerWorker> workers = topicConsumerWorkers.removeAll(topic);
         if (workers != null) {
@@ -266,7 +288,27 @@ public class KafkaConsumer {
             if (!topicMessageListeners.put(topic, messageListener)) {
                 return false;
             }
-            initConsumer(topic);
+            _initConsumer(topic, false);
+            return true;
+        }
+    }
+
+    /**
+     * Adds a message listener for a topic.
+     * 
+     * @param topic
+     * @param messageListener
+     * @param singleThread
+     * @return {@code true} if successful, {@code false} otherwise (the listener
+     *         may have been added already)
+     */
+    public boolean addMessageListener(String topic, IKafkaMessageListener messageListener,
+            boolean singleThread) {
+        synchronized (topicMessageListeners) {
+            if (!topicMessageListeners.put(topic, messageListener)) {
+                return false;
+            }
+            _initConsumer(topic, singleThread);
             return true;
         }
     }
@@ -314,7 +356,7 @@ public class KafkaConsumer {
                 buffer.add(message);
             }
         };
-        addMessageListener(topic, listener);
+        addMessageListener(topic, listener, true);
         KafkaMessage result = buffer.take();
         removeMessageListener(topic, listener);
         return result;
@@ -339,9 +381,12 @@ public class KafkaConsumer {
                 buffer.add(message);
             }
         };
-        addMessageListener(topic, listener);
+        addMessageListener(topic, listener, true);
         KafkaMessage result = buffer.poll(waitTime, waitTimeUnit);
         removeMessageListener(topic, listener);
+        if (result == null) {
+            result = buffer.poll();
+        }
         return result;
     }
 }

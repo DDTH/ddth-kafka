@@ -1,4 +1,5 @@
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
 
 	<modelVersion>4.0.0</modelVersion>
 
@@ -8,7 +9,7 @@
 		<version>2</version>
 	</parent>
 
-	<groupId>com.github.ddth</groupId>
+	<!-- <groupId>com.github.ddth</groupId> -->
 	<artifactId>ddth-kafka</artifactId>
 	<version>1.0.4-SNAPSHOT</version>
 	<packaging>bundle</packaging>
@@ -30,8 +31,9 @@
 
 	<properties>
 		<skipTests>true</skipTests>
-		<version.kafka>0.8.1</version.kafka>
-		<version.ddth-zookeeper>[0.3.1.3,)</version.ddth-zookeeper>
+		<version.kafka>0.8.2.1</version.kafka>
+		<version.jackson>2.6.1</version.jackson>
+		<version.curator>2.8.0</version.curator>
 	</properties>
 
 	<dependencies>
@@ -62,7 +64,7 @@
 		<dependency>
 			<groupId>org.apache.kafka</groupId>
 			<artifactId>kafka_2.10</artifactId>
-			<version>0.8.0</version>
+			<version>${version.kafka}</version>
 			<scope>test</scope>
 			<classifier>test</classifier>
 			<exclusions>
@@ -112,55 +114,65 @@
 		<dependency>
 			<groupId>org.apache.commons</groupId>
 			<artifactId>commons-lang3</artifactId>
-			<version>3.3.2</version>
-		</dependency>
-
-		<dependency>
-			<groupId>com.google.guava</groupId>
-			<artifactId>guava</artifactId>
-			<version>${version.guava}</version>
+			<version>3.4</version>
 		</dependency>
 
 		<dependency>
 			<groupId>com.github.ddth</groupId>
-			<artifactId>ddth-zookeeper</artifactId>
-			<version>${version.ddth-zookeeper}</version>
+			<artifactId>ddth-commons</artifactId>
+			<version>0.3.2.2</version>
 		</dependency>
 
+		<dependency>
+			<groupId>org.apache.curator</groupId>
+			<artifactId>curator-framework</artifactId>
+			<version>${version.curator}</version>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.curator</groupId>
+			<artifactId>curator-recipes</artifactId>
+			<version>${version.curator}</version>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.curator</groupId>
+			<artifactId>curator-client</artifactId>
+			<version>${version.curator}</version>
+		</dependency>
+		<dependency>
+			<groupId>com.github.ddth</groupId>
+			<artifactId>ddth-zookeeper</artifactId>
+			<version>0.3.1.3</version>
+		</dependency>
 
 		<dependency>
 			<groupId>org.apache.commons</groupId>
 			<artifactId>commons-pool2</artifactId>
-			<version>2.2</version>
-			<optional>true</optional>
+			<version>2.4.2</version>
 		</dependency>
+
 		<dependency>
 			<groupId>com.fasterxml.jackson.core</groupId>
 			<artifactId>jackson-core</artifactId>
-			<version>2.3.2</version>
-			<optional>true</optional>
+			<version>${version.jackson}</version>
 		</dependency>
 		<dependency>
 			<groupId>com.fasterxml.jackson.core</groupId>
 			<artifactId>jackson-databind</artifactId>
-			<version>2.3.2</version>
-			<optional>true</optional>
+			<version>${version.jackson}</version>
 		</dependency>
 		<dependency>
 			<groupId>com.fasterxml.jackson.core</groupId>
 			<artifactId>jackson-annotations</artifactId>
-			<version>2.3.2</version>
-			<optional>true</optional>
+			<version>${version.jackson}</version>
 		</dependency>
 	</dependencies>
 
 	<build>
-		<plugins><!-- <plugin> <groupId>org.apache.maven.plugins</groupId> <artifactId>maven-compiler-plugin</artifactId> 
-				<version>3.1</version> <configuration> <source>${version.java}</source> <target>${version.java}</target> 
-				</configuration> </plugin> -->
+		<plugins>
 			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-surefire-plugin</artifactId>
-				<version>2.5</version>
+				<version>2.8.11</version>
 				<configuration>
 					<forkMode>always</forkMode>
 					<skipTests>${skipTests}</skipTests>

@@ -1,23 +1,37 @@
 ddth-kafka release notes
 ========================
 
+1.1.0 - 2015-09-07
+------------------
+
+- Upgrade to Apache Kafka client 2.8.2, producer now switches from Scala to Java client.
+- Deprecate class `RandomPartitioner`, use the default partitioner provided by the java producer: 
+  - Message with `null` or empty key will be put into a random partition.
+  - Message with non-null key will be put into a partition based on it's key's hash value.
+- Method `sendMessage(KafkaMessage)` now returns a Future<KafkaMessage>; method `sendMessages(...)` is removed.
+
+
 1.0.3 - 2014-10-10
 ------------------
+
 - Bug fixed & change: when message's key is empty use empty string (`""`) instead to make sure custom partitioner works.
 
 
 1.0.2 - 2014-10-03
 ------------------
+
 - Bug fixed.
 
 
 1.0.1 - 2014-10-02
 ------------------
+
 - `KafkaClient`: force to use a random partitioner (class `RandomPartitioner`) by default.
 
 
 1.0.0 - 2014-08-23
 ------------------
+
 - `v1.0.0` released!
 - Breaking API changes: new class `KafkaClient` replaces both `KafkaConsumer` and `KafkaProducer`.
 - New class `KafkaMessage`, used by both sending and receiving.
@@ -25,19 +39,23 @@ ddth-kafka release notes
 
 0.2.1.1 - 2014-07-29
 --------------------
+
 - When there are 2 or more `IKafkaMessageListener`s on same topic, each `IKafkaMessageListener.onMessage` is handled by a separated thread. This would boost the consumer's performance a bit. 
 
 
 0.2.1 - 2014-04-03
 ------------------
+
 - `auto.offset.reset` set to `largest` by default. Add option to consume messages from beginning. (See more: [http://kafka.apache.org/08/configuration.html](http://kafka.apache.org/08/configuration.html).
 
 
 0.2.0 - 2014-03-19
 ------------------
+
 - Merged with [ddth-osgikafka](https://github.com/DDTH/ddth-osgikafka) and packaged as OSGi bundle.
 
 
 0.1.0 - 2014-02-21
 ------------------
+
 - First release.

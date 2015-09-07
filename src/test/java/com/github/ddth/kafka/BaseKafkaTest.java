@@ -39,7 +39,7 @@ public abstract class BaseKafkaTest extends TestCase {
                 ZKStringSerializer$.MODULE$);
         try {
             Properties props = new Properties();
-            int partitions = 1;
+            int partitions = 4;
             int replicationFactor = 1;
             AdminUtils.createTopic(zkClient, topic, partitions, replicationFactor, props);
             Thread.sleep(2000);
@@ -49,12 +49,13 @@ public abstract class BaseKafkaTest extends TestCase {
     }
 
     private static KafkaConfig getKafkaConfig(final String zkConnectString) {
-        scala.collection.Iterator<Properties> propsI = TestUtils.createBrokerConfigs(1).iterator();
+        scala.collection.Iterator<Properties> propsI = TestUtils.createBrokerConfigs(1, true)
+                .iterator();
         assert propsI.hasNext();
         Properties props = propsI.next();
         assert props.containsKey("zookeeper.connect");
         props.put("zookeeper.connect", zkConnectString);
-        props.put("num.partitions", "2");
+        props.put("num.partitions", "4");
         props.put("auto.create.topics.enable", "true");
         return new KafkaConfig(props);
     }

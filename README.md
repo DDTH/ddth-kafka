@@ -18,7 +18,7 @@ Third party libraries are distributed under their own licenses.
 
 ## Installation #
 
-Latest release version: `1.0.3`. See [RELEASE-NOTES.md](RELEASE-NOTES.md).
+Latest release version: `1.1.0`. See [RELEASE-NOTES.md](RELEASE-NOTES.md).
 
 Maven dependency:
 
@@ -26,7 +26,7 @@ Maven dependency:
 <dependency>
 	<groupId>com.github.ddth</groupId>
 	<artifactId>ddth-kafka</artifactId>
-	<version>1.0.3</version>
+	<version>1.1.0</version>
 </dependency>
 ```
 
@@ -51,12 +51,13 @@ import com.github.ddth.kafka.KafkaMessage;
 KafkaMessage msg = new KafkaMessage("topic", "message-content-1");
 kafkaClient.sendMessage(msg);
 
+/*
+ * Messages with same key will be put into a same partition.
+ * Messages without (or null) key will be put into random partitions.
+ */
+ 
 msg = new KafkaMessage("topic", "msg-key", "message-content-2");
 kafkaClient.sendMessage(msg);
-
-//you can also send multiple messages at once
-KafkaMessage[] msgs = ...;
-kafkaClient.sendMessages(msgs);
 ```
 
 **Consume one single message:**
@@ -89,6 +90,10 @@ kafkaClient.addMessageListener(consumerGroupId, consumeFromBeginning, topic, msg
 //stop receving message
 kafkaClient.removeMessageListener(consumerGroupId, topic, messageListener);
 ```
+
+**Do NOT use one KafkaClient to consume messages both one-by-one and by message-listener**
+Create a KafkaClient to consume messages one-by-one, and create another client (with different group-id) to consume messages using listener.
+
 
 **Destroy Kafka client when done:**
 

@@ -1,5 +1,8 @@
 package com.github.ddth.kafka;
 
+import com.github.ddth.kafka.internal.KafkaConsumer;
+
+
 
 /**
  * Abstract implementation of {@link IKafkaMessageListener}.

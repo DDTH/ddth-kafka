@@ -78,7 +78,7 @@ public class BaseQndKafka {
     // }
 
     private static KafkaConfig getKafkaConfig(final String zkConnectString) {
-        scala.collection.Iterator<Properties> propsI = TestUtils.createBrokerConfigs(1).iterator();
+        scala.collection.Iterator<Properties> propsI = TestUtils.createBrokerConfigs(1, true).iterator();
         assert propsI.hasNext();
         Properties props = propsI.next();
         assert props.containsKey("zookeeper.connect");

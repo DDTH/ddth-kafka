@@ -30,9 +30,7 @@ public class RoundRobinPartitioner implements Partitioner {
     @Override
     public int partition(Object key, int numPartitions) {
         int result = counter.incrementAndGet() % numPartitions;
-        if (counter.get() > 65536) {
-            counter.set(0);
-        }
+        counter.set(result);
         return result;
     }
 }
