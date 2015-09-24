@@ -1,6 +1,14 @@
 ddth-kafka release notes
 ========================
 
+1.1.1 - 2015-09-24
+------------------
+
+- Turn off `auto.leader.rebalance.enable`.
+- Manual commit offset when consuming messages in manual mode (non-listener mode).
+- Bugs fixed & enhancements: two clients with same consumer-group-id receive duplicate messages.
+
+
 1.1.0 - 2015-09-07
 ------------------
 

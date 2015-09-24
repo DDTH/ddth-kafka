@@ -6,6 +6,7 @@ import java.util.concurrent.CountDownLatch;
 
 import kafka.consumer.ConsumerIterator;
 import kafka.consumer.KafkaStream;
+import kafka.javaapi.consumer.ConsumerConnector;
 import kafka.message.MessageAndMetadata;
 
 import org.slf4j.Logger;
@@ -19,11 +20,17 @@ public class KafkaConsumerWorker implements Runnable {
     private Logger LOGGER = LoggerFactory.getLogger(KafkaConsumerWorker.class);
 
     private KafkaStream<byte[], byte[]> kafkaStream;
+    private ConsumerConnector consumer;
+    private boolean autoCommitOffset;
+
     private boolean stop = false;
     private Collection<IKafkaMessageListener> messageListerners;
 
-    public KafkaConsumerWorker(KafkaStream<byte[], byte[]> kafkaStream,
+    public KafkaConsumerWorker(ConsumerConnector consumer, boolean autoCommitOffset,
+            KafkaStream<byte[], byte[]> kafkaStream,
             Collection<IKafkaMessageListener> messageListerners) {
+        this.consumer = consumer;
+        this.autoCommitOffset = autoCommitOffset;
         this.kafkaStream = kafkaStream;
         this.messageListerners = messageListerners;
     }
@@ -73,6 +80,9 @@ public class KafkaConsumerWorker implements Runnable {
                 }
                 try {
                     countDownLatch.await();
+                    if (!autoCommitOffset) {
+                        consumer.commitOffsets(true);
+                    }
                 } catch (InterruptedException e) {
                     LOGGER.warn(e.getMessage(), e);
                 }

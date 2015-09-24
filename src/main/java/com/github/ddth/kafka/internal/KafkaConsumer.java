@@ -168,20 +168,35 @@ public class KafkaConsumer {
      * 
      * @param consumerGroupId
      * @param consumeFromBeginning
+     * @param autoCommitOffset
      * @return
      */
-    private ConsumerConfig _buildConsumerConfig(String consumerGroupId, boolean consumeFromBeginning) {
+    private ConsumerConfig _buildConsumerConfig(String consumerGroupId,
+            boolean consumeFromBeginning, boolean autoCommitOffset) {
         Properties props = new Properties();
         props.put("zookeeper.connect", kafkaClient.getZookeeperConnectString());
         props.put("group.id", consumerGroupId);
         props.put("zookeeper.session.timeout.ms", "600000");
         props.put("zookeeper.connection.timeout.ms", "10000");
         props.put("zookeeper.sync.time.ms", "2000");
-        props.put("auto.commit.enable", "true");
-        props.put("auto.commit.interval.ms", "1000");
         props.put("socket.timeout.ms", "5000");
         props.put("fetch.wait.max.ms", "2000");
         props.put("auto.offset.reset", consumeFromBeginning ? "smallest" : "largest");
+
+        /*
+         * New in v1.1.1
+         */
+        props.put("auto.leader.rebalance.enable", "false");
+        props.put("controlled.shutdown.enable", true);
+        props.put("controlled.shutdown.retry.", "10000");
+
+        if (autoCommitOffset) {
+            props.put("auto.commit.enable", "true");
+            props.put("auto.commit.interval.ms", "1000");
+        } else {
+            props.put("auto.commit.enable", "false");
+        }
+
         return new ConsumerConfig(props);
     }
 
@@ -189,10 +204,12 @@ public class KafkaConsumer {
      * Creates a consumer for a topic.
      * 
      * @param topic
+     * @param autoCommitOffset
      * @return
      */
-    private ConsumerConnector _createConsumer(String topic) {
-        ConsumerConfig consumerConfig = _buildConsumerConfig(consumerGroupId, consumeFromBeginning);
+    private ConsumerConnector _createConsumer(String topic, boolean autoCommitOffset) {
+        ConsumerConfig consumerConfig = _buildConsumerConfig(consumerGroupId, consumeFromBeginning,
+                autoCommitOffset);
         ConsumerConnector consumer = Consumer.createJavaConsumerConnector(consumerConfig);
         return consumer;
     }
@@ -206,8 +223,10 @@ public class KafkaConsumer {
      *            {@code false} will create number of threads equals to number
      *            of topic's partitions
      * @param consumer
+     * @param autoCommitOffset
      */
-    private void _initConsumerWorkers(String topic, boolean singleThread, ConsumerConnector consumer) {
+    private void _initConsumerWorkers(String topic, boolean singleThread,
+            ConsumerConnector consumer, boolean autoCommitOffset) {
         Map<String, Integer> topicCountMap = new HashMap<String, Integer>();
         int numThreads = kafkaClient.getTopicNumPartitions(topic);
         if (numThreads < 1 || singleThread) {
@@ -224,7 +243,8 @@ public class KafkaConsumer {
              * underlying multimap, and vice versa.
              */
             Collection<IKafkaMessageListener> messageListeners = topicMessageListeners.get(topic);
-            KafkaConsumerWorker worker = new KafkaConsumerWorker(stream, messageListeners);
+            KafkaConsumerWorker worker = new KafkaConsumerWorker(consumer, autoCommitOffset,
+                    stream, messageListeners);
             topicConsumerWorkers.put(topic, worker);
             kafkaClient.submitTask(worker);
         }
@@ -233,14 +253,14 @@ public class KafkaConsumer {
     private ConsumerConnector _initConsumer(String topic, boolean singleThread) {
         ConsumerConnector consumer = topicConsumerConnectors.get(topic);
         if (consumer == null) {
-            consumer = _createConsumer(topic);
+            consumer = _createConsumer(topic, !singleThread);
             ConsumerConnector existingConsumer = topicConsumerConnectors.putIfAbsent(topic,
                     consumer);
             if (existingConsumer != null) {
                 consumer.shutdown();
                 consumer = existingConsumer;
             } else {
-                _initConsumerWorkers(topic, singleThread, consumer);
+                _initConsumerWorkers(topic, singleThread, consumer, !singleThread);
             }
         }
         return consumer;
@@ -347,7 +367,7 @@ public class KafkaConsumer {
      * @return
      * @throws InterruptedException
      */
-    public KafkaMessage consume(String topic) throws InterruptedException {
+    synchronized public KafkaMessage consume(String topic) throws InterruptedException {
         final BlockingQueue<KafkaMessage> buffer = new LinkedBlockingQueue<KafkaMessage>();
         final IKafkaMessageListener listener = new AbstractKafkaMessagelistener(topic, this) {
             @Override
@@ -371,7 +391,7 @@ public class KafkaConsumer {
      * @return {@code null} if there is no message available
      * @throws InterruptedException
      */
-    public KafkaMessage consume(String topic, long waitTime, TimeUnit waitTimeUnit)
+    synchronized public KafkaMessage consume(String topic, long waitTime, TimeUnit waitTimeUnit)
             throws InterruptedException {
         final BlockingQueue<KafkaMessage> buffer = new LinkedBlockingQueue<KafkaMessage>();
         final IKafkaMessageListener listener = new AbstractKafkaMessagelistener(topic, this) {

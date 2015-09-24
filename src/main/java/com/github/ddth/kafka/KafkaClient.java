@@ -33,6 +33,7 @@ import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
 import com.google.common.cache.RemovalListener;
 import com.google.common.cache.RemovalNotification;
+import com.yammer.metrics.Metrics;
 
 /**
  * A simple Kafka client (producer & consumer).
@@ -67,7 +68,7 @@ public class KafkaClient {
 
     private String zookeeperConnectString;
     private ZooKeeperClient zkClient;
-    private ExecutorService executorService = Executors.newCachedThreadPool();
+    private ExecutorService executorService;
 
     /**
      * Constructs an new {@link KafkaClient} object.
@@ -113,6 +114,8 @@ public class KafkaClient {
      * Initializing method.
      */
     public void init() throws Exception {
+        executorService = Executors.newCachedThreadPool();
+
         zkClient = new ZooKeeperClient(zookeeperConnectString);
         zkClient.init();
     }
@@ -134,13 +137,19 @@ public class KafkaClient {
         if (cacheConsumers != null) {
             for (Entry<String, KafkaConsumer> entry : cacheConsumers.entrySet()) {
                 try {
-                    entry.getValue().destroy();
+                    KafkaConsumer consumer = entry.getValue();
+                    consumer.destroy();
                 } catch (Exception e) {
                     LOGGER.warn(e.getMessage(), e);
                 }
             }
             cacheConsumers.clear();
         }
+
+        // to fix the error
+        // "thread Thread[metrics-meter-tick-thread-1...] was interrupted but is still alive..."
+        // since Kafka does not shutdown Metrics registry on close.
+        Metrics.defaultRegistry().shutdown();
 
         if (executorService != null) {
             try {

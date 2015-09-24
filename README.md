@@ -11,14 +11,14 @@ OSGi environment: `ddth-kafka` is packaged as an OSGi bundle.
 
 ## License ##
 
-See LICENSE.txt for details. Copyright (c) 2014 Thanh Ba Nguyen.
+See LICENSE.txt for details. Copyright (c) 2014-2015 Thanh Ba Nguyen.
 
 Third party libraries are distributed under their own licenses.
 
 
 ## Installation #
 
-Latest release version: `1.1.0`. See [RELEASE-NOTES.md](RELEASE-NOTES.md).
+Latest release version: `1.1.1`. See [RELEASE-NOTES.md](RELEASE-NOTES.md).
 
 Maven dependency:
 
@@ -26,7 +26,7 @@ Maven dependency:
 <dependency>
 	<groupId>com.github.ddth</groupId>
 	<artifactId>ddth-kafka</artifactId>
-	<version>1.1.0</version>
+	<version>1.1.1</version>
 </dependency>
 ```
 
