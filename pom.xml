@@ -30,7 +30,7 @@
 
 	<properties>
 		<skipTests>true</skipTests>
-		<version.kafka>0.8.2.1</version.kafka>
+		<version.kafka>0.8.2.2</version.kafka>
 		<version.jackson>2.6.1</version.jackson>
 		<version.curator>2.8.0</version.curator>
 	</properties>

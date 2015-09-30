@@ -1,10 +1,11 @@
 ddth-kafka release notes
 ========================
 
-1.1.1.1 - 2015-09-30
---------------------
+1.1.2 - 2015-09-30
+------------------
 
 - Fine tune `auto.leader.rebalance.enable` (now controllable within `KafkaConsumer` class).
+- Upgrade to `org.apache.kafka:kafka_2.10:0.8.2.2`
 
 
 1.1.1 - 2015-09-24
