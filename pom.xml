@@ -10,7 +10,7 @@
 
 	<!-- <groupId>com.github.ddth</groupId> -->
 	<artifactId>ddth-kafka</artifactId>
-	<version>1.1.1.2-SNAPSHOT</version>
+	<version>1.1.2</version>
 	<packaging>bundle</packaging>
 
 	<name>ddth-kafka</name>
