@@ -172,7 +172,7 @@ public class KafkaConsumer {
      * @return
      */
     private ConsumerConfig _buildConsumerConfig(String consumerGroupId,
-            boolean consumeFromBeginning, boolean autoCommitOffset) {
+            boolean consumeFromBeginning, boolean autoCommitOffset, boolean leaderAutoRebalance) {
         Properties props = new Properties();
         props.put("zookeeper.connect", kafkaClient.getZookeeperConnectString());
         props.put("group.id", consumerGroupId);
@@ -186,9 +186,16 @@ public class KafkaConsumer {
         /*
          * New in v1.1.1
          */
-        props.put("auto.leader.rebalance.enable", "false");
-        props.put("controlled.shutdown.enable", true);
-        props.put("controlled.shutdown.retry.", "10000");
+        if (leaderAutoRebalance) {
+            props.put("auto.leader.rebalance.enable", "true");
+            props.put("rebalance.backoff.ms", "10000");
+            props.put("refresh.leader.backoff.ms", "1000");
+        } else {
+            props.put("auto.leader.rebalance.enable", "false");
+        }
+        props.put("controlled.shutdown.enable", "true");
+        props.put("controlled.shutdown.max.retries", "5");
+        props.put("controlled.shutdown.retry.backoff.ms", "10000");
 
         if (autoCommitOffset) {
             props.put("auto.commit.enable", "true");
@@ -207,9 +214,10 @@ public class KafkaConsumer {
      * @param autoCommitOffset
      * @return
      */
-    private ConsumerConnector _createConsumer(String topic, boolean autoCommitOffset) {
+    private ConsumerConnector _createConsumer(String topic, boolean autoCommitOffset,
+            boolean leaderAutoRebalance) {
         ConsumerConfig consumerConfig = _buildConsumerConfig(consumerGroupId, consumeFromBeginning,
-                autoCommitOffset);
+                autoCommitOffset, leaderAutoRebalance);
         ConsumerConnector consumer = Consumer.createJavaConsumerConnector(consumerConfig);
         return consumer;
     }
@@ -250,10 +258,11 @@ public class KafkaConsumer {
         }
     }
 
-    private ConsumerConnector _initConsumer(String topic, boolean singleThread) {
+    private ConsumerConnector _initConsumer(String topic, boolean singleThread,
+            boolean leaderAutoRebalance) {
         ConsumerConnector consumer = topicConsumerConnectors.get(topic);
         if (consumer == null) {
-            consumer = _createConsumer(topic, !singleThread);
+            consumer = _createConsumer(topic, !singleThread, leaderAutoRebalance);
             ConsumerConnector existingConsumer = topicConsumerConnectors.putIfAbsent(topic,
                     consumer);
             if (existingConsumer != null) {
@@ -308,7 +317,7 @@ public class KafkaConsumer {
             if (!topicMessageListeners.put(topic, messageListener)) {
                 return false;
             }
-            _initConsumer(topic, false);
+            _initConsumer(topic, false, true);
             return true;
         }
     }
@@ -319,16 +328,19 @@ public class KafkaConsumer {
      * @param topic
      * @param messageListener
      * @param singleThread
+     * @param leaderAutoRebalance
+     *            allow leadership rebalance (see
+     *            http://kafka.apache.org/documentation.html)
      * @return {@code true} if successful, {@code false} otherwise (the listener
      *         may have been added already)
      */
     public boolean addMessageListener(String topic, IKafkaMessageListener messageListener,
-            boolean singleThread) {
+            boolean singleThread, boolean leaderAutoRebalance) {
         synchronized (topicMessageListeners) {
             if (!topicMessageListeners.put(topic, messageListener)) {
                 return false;
             }
-            _initConsumer(topic, singleThread);
+            _initConsumer(topic, singleThread, leaderAutoRebalance);
             return true;
         }
     }
@@ -376,7 +388,7 @@ public class KafkaConsumer {
                 buffer.add(message);
             }
         };
-        addMessageListener(topic, listener, true);
+        addMessageListener(topic, listener, true, false);
         KafkaMessage result = buffer.take();
         removeMessageListener(topic, listener);
         return result;
@@ -401,7 +413,7 @@ public class KafkaConsumer {
                 buffer.add(message);
             }
         };
-        addMessageListener(topic, listener, true);
+        addMessageListener(topic, listener, true, false);
         KafkaMessage result = buffer.poll(waitTime, waitTimeUnit);
         removeMessageListener(topic, listener);
         if (result == null) {
