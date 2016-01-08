@@ -37,7 +37,7 @@ import com.yammer.metrics.Metrics;
 
 /**
  * A simple Kafka client (producer & consumer).
- *
+ * 
  * @author Thanh Ba Nguyen <bnguyen2k@gmail.com>
  * @since 1.0.0
  */
@@ -45,7 +45,7 @@ public class KafkaClient {
 
     /**
      * Producer type:
-     *
+     * 
      * <ul>
      * <li>{@code FULL_ASYNC}: fully async producer (messages are sent in
      * background thread), requires no ack from broker - maximum throughput but
@@ -68,7 +68,9 @@ public class KafkaClient {
 
     private String zookeeperConnectString;
     private ZooKeeperClient zkClient;
+
     private ExecutorService executorService;
+    private boolean myOwnExecutorService = true;
 
     /**
      * Constructs an new {@link KafkaClient} object.
@@ -79,33 +81,33 @@ public class KafkaClient {
     /**
      * Constructs a new {@link KafkaClient} object with specified ZooKeeper
      * connection string.
-     *
+     * 
      * @param zookeeperConnectString
      *            format "host1:port,host2:port,host3:port" or
      *            "host1:port,host2:port,host3:port/chroot"
      */
     public KafkaClient(String zookeeperConnectString) {
-        this.zookeeperConnectString = zookeeperConnectString;
+        setZookeeperConnectString(zookeeperConnectString);
     }
 
     /**
      * Constructs a new {@link KafkaClient} object with specified ZooKeeper
      * connection string and Executor service.
-     *
+     * 
      * @param zookeeperConnectString
      *            format "host1:port,host2:port,host3:port" or
      *            "host1:port,host2:port,host3:port/chroot"
      * @param executor
      */
     public KafkaClient(String zookeeperConnectString, ExecutorService executor) {
-        this.zookeeperConnectString = zookeeperConnectString;
-        this.executorService = executor;
+        setZookeeperConnectString(zookeeperConnectString);
+        setExecutorService(executor);
     }
 
     /**
      * ZooKeeper connection string in format {@code "host1:2182,host2:2182"} or
      * {@code "host1:2182,host2:2182/<chroot>"}.
-     *
+     * 
      * @return
      */
     public String getZookeeperConnectString() {
@@ -115,7 +117,7 @@ public class KafkaClient {
     /**
      * ZooKeeper connection string in format {@code "host1:2182,host2:2182"} or
      * {@code "host1:2182,host2:2182/<chroot>"}.
-     *
+     * 
      * @param zookeeperConnectString
      * @return
      */
@@ -124,12 +126,24 @@ public class KafkaClient {
         return this;
     }
 
+    public KafkaClient setExecutorService(ExecutorService executorService) {
+        if (this.executorService != null) {
+            this.executorService.shutdown();
+        }
+        this.executorService = executorService;
+        myOwnExecutorService = false;
+        return this;
+    }
+
     /**
      * Initializing method.
      */
     public void init() throws Exception {
         if (executorService == null) {
-          executorService = Executors.newCachedThreadPool();
+            executorService = Executors.newCachedThreadPool();
+            myOwnExecutorService = true;
+        } else {
+            myOwnExecutorService = false;
         }
 
         zkClient = new ZooKeeperClient(zookeeperConnectString);
@@ -167,7 +181,7 @@ public class KafkaClient {
         // since Kafka does not shutdown Metrics registry on close.
         Metrics.defaultRegistry().shutdown();
 
-        if (executorService != null) {
+        if (executorService != null && myOwnExecutorService) {
             try {
                 executorService.shutdownNow();
             } catch (Exception e) {
@@ -202,7 +216,7 @@ public class KafkaClient {
 
     /**
      * Gets number of partitions for a topic.
-     *
+     * 
      * @param topicName
      * @return number of partitions of a topic, or {@code 0} if topic does not
      *         exist
@@ -227,12 +241,12 @@ public class KafkaClient {
 
     /**
      * Obtains a {@link KafkaConsumer} instance.
-     *
+     * 
      * <p>
      * Note: The existing {@link KafkaConsumer} will be returned if such exists;
      * otherwise a new {@link KafkaConsumer} instance will be created.
      * </p>
-     *
+     * 
      * @param consumerGroupId
      * @param consumeFromBeginning
      * @return
@@ -252,16 +266,16 @@ public class KafkaClient {
 
     /**
      * Consumes one message from a topic.
-     *
+     * 
      * <p>
      * Note: this method blocks until a message arrives.
      * </p>
-     *
+     * 
      * <p>
      * Note: {@code consumeFromBeginning} is ignored if there is an existing
      * consumer for the {@link consumerGroupId}.
      * </p>
-     *
+     * 
      * @param consumerGroupId
      * @param consumeFromBeginning
      * @param topic
@@ -276,12 +290,12 @@ public class KafkaClient {
 
     /**
      * Consumes one message from a topic, wait up to specified wait-time.
-     *
+     * 
      * <p>
      * Note: {@code consumeFromBeginning} is ignored if there is an existing
      * consumer for the {@link consumerGroupId}.
      * </p>
-     *
+     * 
      * @param consumerGroupId
      * @param consumeFromBeginning
      * @param topic
@@ -298,12 +312,12 @@ public class KafkaClient {
 
     /**
      * Adds a message listener for a topic.
-     *
+     * 
      * <p>
      * Note: {@code consumeFromBeginning} is ignored if there is an existing
      * consumer for the {@link consumerGroupId}.
      * </p>
-     *
+     * 
      * @param consumerGroupId
      * @param consumeFromBeginning
      * @param topic
@@ -319,7 +333,7 @@ public class KafkaClient {
 
     /**
      * Removes a topic message listener.
-     *
+     * 
      * @param consumerGroupId
      * @param topic
      * @param messageListener
@@ -355,7 +369,7 @@ public class KafkaClient {
 
     /**
      * Gets broker list in format {@code "host1:port1,host2:port2,..."}
-     *
+     * 
      * @return
      */
     public String getBrokerList() {
@@ -372,7 +386,7 @@ public class KafkaClient {
 
     /**
      * Creates a new Java producer object.
-     *
+     * 
      * @param type
      * @return
      */
@@ -429,7 +443,7 @@ public class KafkaClient {
 
     /**
      * Gets a Java producer of a specific type.
-     *
+     * 
      * @param type
      * @return
      */
@@ -443,7 +457,7 @@ public class KafkaClient {
 
     /**
      * Sends a message, with default {@link ProducerType}.
-     *
+     * 
      * @param message
      * @return a copy of message filled with partition number and offset
      */
@@ -453,7 +467,7 @@ public class KafkaClient {
 
     /**
      * Sends a message, specifying {@link ProducerType}.
-     *
+     * 
      * @param type
      * @param message
      * @return a copy of message filled with partition number and offset

@@ -1,6 +1,13 @@
 ddth-kafka release notes
 ========================
 
+1.1.3 - 2016-01-08
+------------------
+
+- `KafkaClient` accepts custom thread pool (pull request #2: https://github.com/DDTH/ddth-kafka/pull/2 ).
+- Improvement to pull request #2: donot shutdown the `ExecutorService` if it was not created by the `KafkaClient`.
+
+
 1.1.2 - 2015-09-30
 ------------------
 
