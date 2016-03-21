@@ -5,7 +5,7 @@ ddth-kafka release notes
 ------------------
 
 - Upgrade to v0.9.0.1 of Kafka Java producer and consumer:
-  - It no longer works with Kafka broker pre-0.9, [http://kafka.apache.org/documentation.html#upgrade](upgrade your Kafka broker cluster to 0.9.x).
+  - It no longer works with Kafka broker pre-0.9, [upgrade your Kafka broker cluster to 0.9.x](http://kafka.apache.org/documentation.html#upgrade).
   - Pure Java producer and consumer.
   - Remove Zookeeper dependency.
 - New methods `KafkaClient.seekToBeginning(String consumerGroupId, String topic)` and `KafkaClient.seekToEnd(String consumerGroupId, String topic)`.

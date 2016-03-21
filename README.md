@@ -11,14 +11,14 @@ OSGi environment: `ddth-kafka` is packaged as an OSGi bundle.
 
 ## License ##
 
-See LICENSE.txt for details. Copyright (c) 2014-2015 Thanh Ba Nguyen.
+See LICENSE.txt for details. Copyright (c) 2014-2016 Thanh Ba Nguyen.
 
 Third party libraries are distributed under their own licenses.
 
 
 ## Installation #
 
-Latest release version: `1.1.3`. See [RELEASE-NOTES.md](RELEASE-NOTES.md).
+Latest release version: `1.2.0`. See [RELEASE-NOTES.md](RELEASE-NOTES.md).
 
 Maven dependency:
 
@@ -26,20 +26,26 @@ Maven dependency:
 <dependency>
 	<groupId>com.github.ddth</groupId>
 	<artifactId>ddth-kafka</artifactId>
-	<version>1.1.3</version>
+	<version>1.2.0</version>
 </dependency>
 ```
 
 
 ## Usage ##
 
+**IMPORTANT!**
+
+Since v1.2.0 `ddth-kafka` uses the new version 0.9.x of Kafka producer and consumer.
+It does _not_ work with Kafka broker pre-0.9. Please [upgrade your Kafka broker cluster to 0.9.x](http://kafka.apache.org/documentation.html#upgrade)!
+
+
 **Initialize a Kafka client:**
 
 ```java
 import com.github.ddth.kafka.KafkaClient;
 ...
-String zookeeperConnString = "localhost:2181/kafka";
-KafkaClient kafkaClient = new KafkaClient(zookeeperConnString);
+String bootstrapServers = "localhost:9092";
+KafkaClient kafkaClient = new KafkaClient(bootstrapServers);
 kafkaClient.init();
 ```
 
@@ -53,9 +59,7 @@ kafkaClient.sendMessage(msg);
 
 /*
  * Messages with same key will be put into a same partition.
- * Messages without (or null) key will be put into random partitions.
- */
- 
+ */ 
 msg = new KafkaMessage("topic", "msg-key", "message-content-2");
 kafkaClient.sendMessage(msg);
 ```
@@ -67,11 +71,17 @@ final String consumerGroupId = "my-group-id";
 final boolean consumeFromBeginning = true;
 final String topic = "topic-name";
 
-//consume one message from a topic, this method blocks until message is available
+//consume one message from a topic
 KafkaMessage msg = consumer.consumeMessage(consumerGroupId, consumeFromBeginning, topic);
 
-//consume one message from a topic, wait up to 3 seconds for message to become available
+//consume one message from a topic. This is shorthand for consumer.consumeMessage(consumerGroupId, true, topic);
+KafkaMessage msg = consumer.consumeMessage(consumerGroupId, topic);
+
+//consume one message from a topic, wait up to 3 seconds
 KafkaMessage msg = consumer.consumeMessage(consumerGroupId, consumeFromBeginning, topic, 3, TimeUnit.SECONDS);
+
+//consume one message from a topic, wait up to 3 seconds. This is shorthand for consumer.consumeMessage(consumerGroupId, true, topic, 3, TimeUnit.SECONDS);
+KafkaMessage msg = consumer.consumeMessage(consumerGroupId, topic, 3, TimeUnit.SECONDS);
 ```
 
 **Consume messages using message listener:**
