@@ -1,10 +1,13 @@
-package com.github.ddth.kafka;
+package com.github.ddth.kafka.test;
 
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+
+import com.github.ddth.kafka.IKafkaMessageListener;
+import com.github.ddth.kafka.KafkaMessage;
 
 import junit.framework.Test;
 import junit.framework.TestSuite;

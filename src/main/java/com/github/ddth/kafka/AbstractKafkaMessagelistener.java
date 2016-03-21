@@ -1,6 +1,6 @@
 package com.github.ddth.kafka;
 
-import com.github.ddth.kafka.internal.KafkaConsumer;
+import com.github.ddth.kafka.internal.KafkaMsgConsumer;
 
 
 
@@ -12,13 +12,13 @@ import com.github.ddth.kafka.internal.KafkaConsumer;
  */
 public abstract class AbstractKafkaMessagelistener implements IKafkaMessageListener {
 
-    private KafkaConsumer kafkaConsumer;
+    private KafkaMsgConsumer kafkaConsumer;
 
-    public AbstractKafkaMessagelistener(String topic, KafkaConsumer kafkaConsumer) {
+    public AbstractKafkaMessagelistener(String topic, KafkaMsgConsumer kafkaConsumer) {
         this.kafkaConsumer = kafkaConsumer;
     }
 
-    protected KafkaConsumer getKafkaConsumer() {
+    protected KafkaMsgConsumer getKafkaConsumer() {
         return kafkaConsumer;
     }
 }

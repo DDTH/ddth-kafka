@@ -3,11 +3,10 @@ package com.github.ddth.kafka;
 import java.io.Serializable;
 import java.nio.charset.Charset;
 
-import kafka.message.MessageAndMetadata;
-
 import org.apache.commons.lang3.builder.EqualsBuilder;
 import org.apache.commons.lang3.builder.HashCodeBuilder;
 import org.apache.commons.lang3.builder.ToStringBuilder;
+import org.apache.kafka.clients.consumer.ConsumerRecord;
 
 /**
  * Represents a Kafka message.
@@ -64,18 +63,17 @@ public class KafkaMessage implements Serializable {
     }
 
     /**
-     * Constructs a new {@link KafkaMessage} from a {@link MessageAndMetadata}
-     * object.
+     * Constructs a new {@link KafkaMessage} from a {@link ConsumerRecord}.
      * 
-     * @param mm
-     * @since 1.1.0
+     * @param cr
+     * @since 1.2.0
      */
-    public KafkaMessage(MessageAndMetadata<byte[], byte[]> mm) {
-        topic(mm.topic());
-        key(mm.key());
-        content(mm.message());
-        partition(mm.partition());
-        offset(mm.offset());
+    public KafkaMessage(ConsumerRecord<String, byte[]> cr) {
+        topic(cr.topic());
+        key(cr.key());
+        content(cr.value());
+        partition(cr.partition());
+        offset(cr.offset());
     }
 
     /**

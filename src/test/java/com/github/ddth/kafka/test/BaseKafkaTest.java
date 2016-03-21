@@ -1,4 +1,4 @@
-package com.github.ddth.kafka;
+package com.github.ddth.kafka.test;
 
 import java.io.IOException;
 import java.util.Properties;
@@ -14,6 +14,8 @@ import org.I0Itec.zkclient.ZkClient;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Before;
+
+import com.github.ddth.kafka.KafkaClient;
 
 /**
  * Unit test for simple App.

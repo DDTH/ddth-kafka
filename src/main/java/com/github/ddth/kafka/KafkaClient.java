@@ -1,10 +1,7 @@
 package com.github.ddth.kafka;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
+import java.io.Closeable;
 import java.util.Map.Entry;
-import java.util.Properties;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -17,23 +14,18 @@ import java.util.concurrent.TimeUnit;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.kafka.clients.producer.KafkaProducer;
-import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.clients.producer.RecordMetadata;
-import org.apache.kafka.common.serialization.ByteArraySerializer;
-import org.apache.kafka.common.serialization.StringSerializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.github.ddth.commons.utils.DPathUtils;
-import com.github.ddth.kafka.internal.KafkaConsumer;
-import com.github.ddth.zookeeper.ZooKeeperClient;
+import com.github.ddth.kafka.internal.KafkaHelper;
+import com.github.ddth.kafka.internal.KafkaMsgConsumer;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
 import com.google.common.cache.RemovalListener;
 import com.google.common.cache.RemovalNotification;
-import com.yammer.metrics.Metrics;
 
 /**
  * A simple Kafka client (producer & consumer).
@@ -41,7 +33,7 @@ import com.yammer.metrics.Metrics;
  * @author Thanh Ba Nguyen <bnguyen2k@gmail.com>
  * @since 1.0.0
  */
-public class KafkaClient {
+public class KafkaClient implements Closeable {
 
     /**
      * Producer type:
@@ -66,11 +58,10 @@ public class KafkaClient {
 
     private final Logger LOGGER = LoggerFactory.getLogger(KafkaClient.class);
 
-    private String zookeeperConnectString;
-    private ZooKeeperClient zkClient;
-
     private ExecutorService executorService;
     private boolean myOwnExecutorService = true;
+
+    private String kafkaBootstrapServers;
 
     /**
      * Constructs an new {@link KafkaClient} object.
@@ -79,50 +70,50 @@ public class KafkaClient {
     }
 
     /**
-     * Constructs a new {@link KafkaClient} object with specified ZooKeeper
-     * connection string.
+     * Constructs a new {@link KafkaClient} object with a specified Kafka
+     * bootstrap server list.
      * 
-     * @param zookeeperConnectString
-     *            format "host1:port,host2:port,host3:port" or
-     *            "host1:port,host2:port,host3:port/chroot"
+     * @param kafkaBootstrapServers
+     *            format "host1:port1,host2:port2,host3:port3"
+     * @since 1.2.0
      */
-    public KafkaClient(String zookeeperConnectString) {
-        setZookeeperConnectString(zookeeperConnectString);
+    public KafkaClient(String kafkaBootstrapServers) {
+        setKafkaBootstrapServers(kafkaBootstrapServers);
     }
 
     /**
-     * Constructs a new {@link KafkaClient} object with specified ZooKeeper
-     * connection string and Executor service.
+     * Constructs a new {@link KafkaClient} object with a specified Kafka
+     * bootstrap server list and a Executor service.
      * 
-     * @param zookeeperConnectString
-     *            format "host1:port,host2:port,host3:port" or
-     *            "host1:port,host2:port,host3:port/chroot"
+     * @param kafkaBootstrapServers
+     *            format "host1:port1,host2:port2,host3:port3"
      * @param executor
+     * @since 1.2.0
      */
-    public KafkaClient(String zookeeperConnectString, ExecutorService executor) {
-        setZookeeperConnectString(zookeeperConnectString);
+    public KafkaClient(String kafkaBootstrapServers, ExecutorService executor) {
+        setKafkaBootstrapServers(kafkaBootstrapServers);
         setExecutorService(executor);
     }
 
     /**
-     * ZooKeeper connection string in format {@code "host1:2182,host2:2182"} or
-     * {@code "host1:2182,host2:2182/<chroot>"}.
+     * Kafka bootstrap server list in format {@code "host:9042,host2:port2"}.
      * 
      * @return
+     * @since 1.2.0
      */
-    public String getZookeeperConnectString() {
-        return zookeeperConnectString;
+    public String getKafkaBootstrapServers() {
+        return kafkaBootstrapServers;
     }
 
     /**
-     * ZooKeeper connection string in format {@code "host1:2182,host2:2182"} or
-     * {@code "host1:2182,host2:2182/<chroot>"}.
+     * Kafka bootstrap server list in format {@code "host:9042,host2:port2"}.
      * 
-     * @param zookeeperConnectString
+     * @param kafkaBootstrapServers
      * @return
+     * @since 1.2.0
      */
-    public KafkaClient setZookeeperConnectString(String zookeeperConnectString) {
-        this.zookeeperConnectString = zookeeperConnectString;
+    public KafkaClient setKafkaBootstrapServers(String kafkaBootstrapServers) {
+        this.kafkaBootstrapServers = kafkaBootstrapServers;
         return this;
     }
 
@@ -136,18 +127,26 @@ public class KafkaClient {
     }
 
     /**
-     * Initializing method.
+     * Init method.
      */
-    public void init() throws Exception {
+    public KafkaClient init() throws Exception {
         if (executorService == null) {
             executorService = Executors.newCachedThreadPool();
             myOwnExecutorService = true;
         } else {
             myOwnExecutorService = false;
         }
+        return this;
+    }
 
-        zkClient = new ZooKeeperClient(zookeeperConnectString);
-        zkClient.init();
+    /**
+     * Destroy method.
+     * 
+     * @since 1.2.0
+     */
+    @Override
+    public void close() {
+        destroy();
     }
 
     /**
@@ -165,9 +164,9 @@ public class KafkaClient {
         }
 
         if (cacheConsumers != null) {
-            for (Entry<String, KafkaConsumer> entry : cacheConsumers.entrySet()) {
+            for (Entry<String, KafkaMsgConsumer> entry : cacheConsumers.entrySet()) {
                 try {
-                    KafkaConsumer consumer = entry.getValue();
+                    KafkaMsgConsumer consumer = entry.getValue();
                     consumer.destroy();
                 } catch (Exception e) {
                     LOGGER.warn(e.getMessage(), e);
@@ -176,10 +175,11 @@ public class KafkaClient {
             cacheConsumers.clear();
         }
 
-        // to fix the error
+        // // to fix the error
+        // //
         // "thread Thread[metrics-meter-tick-thread-1...] was interrupted but is still alive..."
-        // since Kafka does not shutdown Metrics registry on close.
-        Metrics.defaultRegistry().shutdown();
+        // // since Kafka does not shutdown Metrics registry on close.
+        // Metrics.defaultRegistry().shutdown();
 
         if (executorService != null && myOwnExecutorService) {
             try {
@@ -190,72 +190,51 @@ public class KafkaClient {
                 executorService = null;
             }
         }
-
-        try {
-            if (zkClient != null) {
-                zkClient.destroy();
-            }
-        } catch (Exception e) {
-            LOGGER.warn(e.getMessage(), e);
-        } finally {
-            zkClient = null;
-        }
     }
 
-    public Future<?> submitTask(Runnable task) {
+    private Future<?> submitTask(Runnable task) {
         return executorService.submit(task);
     }
 
-    public <T> Future<T> submitTask(Runnable task, T result) {
-        return executorService.submit(task, result);
-    }
-
-    public <T> Future<T> submitTask(Callable<T> task) {
-        return executorService.submit(task);
-    }
-
-    /**
-     * Gets number of partitions for a topic.
-     * 
-     * @param topicName
-     * @return number of partitions of a topic, or {@code 0} if topic does not
-     *         exist
-     */
-    public int getTopicNumPartitions(String topicName) {
-        Object obj = zkClient.getDataJson("/brokers/topics/" + topicName);
-        Map<?, ?> partitionData = DPathUtils.getValue(obj, "partitions", Map.class);
-        return partitionData != null ? partitionData.size() : 0;
-    }
+    // private <T> Future<T> submitTask(Runnable task, T result) {
+    // return executorService.submit(task, result);
+    // }
+    //
+    // private <T> Future<T> submitTask(Callable<T> task) {
+    // return executorService.submit(task);
+    // }
 
     /*----------------------------------------------------------------------*/
     /* CONSUMER */
     /*----------------------------------------------------------------------*/
     /* Mapping {consumer-group-id -> KafkaConsumer} */
-    private ConcurrentMap<String, KafkaConsumer> cacheConsumers = new ConcurrentHashMap<String, KafkaConsumer>();
+    private ConcurrentMap<String, KafkaMsgConsumer> cacheConsumers = new ConcurrentHashMap<String, KafkaMsgConsumer>();
 
-    private KafkaConsumer _newKafkaConsumer(String consumerGroupId, boolean consumeFromBeginning) {
-        KafkaConsumer kafkaConsumer = new KafkaConsumer(this, consumerGroupId, consumeFromBeginning);
+    private KafkaMsgConsumer _newKafkaConsumer(String consumerGroupId, boolean consumeFromBeginning) {
+        KafkaMsgConsumer kafkaConsumer = new KafkaMsgConsumer(getKafkaBootstrapServers(),
+                consumerGroupId, consumeFromBeginning);
         kafkaConsumer.init();
         return kafkaConsumer;
     }
 
     /**
-     * Obtains a {@link KafkaConsumer} instance.
+     * Obtains a {@link KafkaMsgConsumer} instance.
      * 
      * <p>
-     * Note: The existing {@link KafkaConsumer} will be returned if such exists;
-     * otherwise a new {@link KafkaConsumer} instance will be created.
+     * Note: The existing {@link KafkaMsgConsumer} will be returned if such
+     * exists; otherwise a new {@link KafkaMsgConsumer} instance will be
+     * created.
      * </p>
      * 
      * @param consumerGroupId
      * @param consumeFromBeginning
      * @return
      */
-    private KafkaConsumer getKafkaConsumer(String consumerGroupId, boolean consumeFromBeginning) {
-        KafkaConsumer kafkaConsumer = cacheConsumers.get(consumerGroupId);
+    private KafkaMsgConsumer getKafkaConsumer(String consumerGroupId, boolean consumeFromBeginning) {
+        KafkaMsgConsumer kafkaConsumer = cacheConsumers.get(consumerGroupId);
         if (kafkaConsumer == null) {
             kafkaConsumer = _newKafkaConsumer(consumerGroupId, consumeFromBeginning);
-            KafkaConsumer temp = cacheConsumers.putIfAbsent(consumerGroupId, kafkaConsumer);
+            KafkaMsgConsumer temp = cacheConsumers.putIfAbsent(consumerGroupId, kafkaConsumer);
             if (temp != null) {
                 kafkaConsumer.destroy();
                 kafkaConsumer = temp;
@@ -264,12 +243,88 @@ public class KafkaClient {
         return kafkaConsumer;
     }
 
+    private String myGroupId = "__" + this.getClass().getCanonicalName();
+
+    /**
+     * Checks if a Kafka topic exists.
+     * 
+     * @param topic
+     * @return
+     * @since 1.2.0
+     */
+    public boolean topicExists(String topic) {
+        KafkaMsgConsumer consumer = getKafkaConsumer(myGroupId, false);
+        return consumer.topicExists(topic);
+    }
+
+    /**
+     * Gets number of partitions of a topic.
+     * 
+     * @param topic
+     * @return topic's number of partitions, or {@code 0} if the topic does not
+     *         exist
+     * @since 1.2.0
+     */
+    public int getNumPartitions(String topic) {
+        KafkaMsgConsumer consumer = getKafkaConsumer(myGroupId, false);
+        return consumer.getNumPartitions(topic);
+    }
+
+    /**
+     * Seeks to the beginning of all partitions of a topic.
+     * 
+     * @param consumerGroupId
+     * @param topic
+     * @since 1.2.0
+     */
+    public void seekToBeginning(String consumerGroupId, String topic) {
+        KafkaMsgConsumer consumer = getKafkaConsumer(consumerGroupId, false);
+        consumer.seekToBeginning(topic);
+    }
+
+    /**
+     * Seeks to the end of all partitions of a topic.
+     * 
+     * @param consumerGroupId
+     * @param topic
+     * @since 1.2.0
+     */
+    public void seekToEnd(String consumerGroupId, String topic) {
+        KafkaMsgConsumer consumer = getKafkaConsumer(consumerGroupId, false);
+        consumer.seekToEnd(topic);
+    }
+
     /**
      * Consumes one message from a topic.
      * 
-     * <p>
-     * Note: this method blocks until a message arrives.
-     * </p>
+     * @param consumerGroupId
+     * @param topic
+     * @return
+     * @since 1.2.0
+     */
+    public KafkaMessage consumeMessage(String consumerGroupId, String topic) {
+        KafkaMsgConsumer kafkaConsumer = getKafkaConsumer(consumerGroupId, true);
+        return kafkaConsumer.consume(topic);
+    }
+
+    /**
+     * Consumes one message from a topic, wait up to specified wait-time.
+     * 
+     * @param consumerGroupId
+     * @param topic
+     * @param waitTime
+     * @param waitTimeUnit
+     * @return
+     * @since 1.2.0
+     */
+    public KafkaMessage consumeMessage(String consumerGroupId, String topic, long waitTime,
+            TimeUnit waitTimeUnit) {
+        KafkaMsgConsumer kafkaConsumer = getKafkaConsumer(consumerGroupId, true);
+        return kafkaConsumer.consume(topic, waitTime, waitTimeUnit);
+    }
+
+    /**
+     * Consumes one message from a topic.
      * 
      * <p>
      * Note: {@code consumeFromBeginning} is ignored if there is an existing
@@ -280,11 +335,10 @@ public class KafkaClient {
      * @param consumeFromBeginning
      * @param topic
      * @return
-     * @throws InterruptedException
      */
     public KafkaMessage consumeMessage(String consumerGroupId, boolean consumeFromBeginning,
-            String topic) throws InterruptedException {
-        KafkaConsumer kafkaConsumer = getKafkaConsumer(consumerGroupId, consumeFromBeginning);
+            String topic) {
+        KafkaMsgConsumer kafkaConsumer = getKafkaConsumer(consumerGroupId, consumeFromBeginning);
         return kafkaConsumer.consume(topic);
     }
 
@@ -302,11 +356,10 @@ public class KafkaClient {
      * @param waitTime
      * @param waitTimeUnit
      * @return
-     * @throws InterruptedException
      */
     public KafkaMessage consumeMessage(String consumerGroupId, boolean consumeFromBeginning,
-            String topic, long waitTime, TimeUnit waitTimeUnit) throws InterruptedException {
-        KafkaConsumer kafkaConsumer = getKafkaConsumer(consumerGroupId, consumeFromBeginning);
+            String topic, long waitTime, TimeUnit waitTimeUnit) {
+        KafkaMsgConsumer kafkaConsumer = getKafkaConsumer(consumerGroupId, consumeFromBeginning);
         return kafkaConsumer.consume(topic, waitTime, waitTimeUnit);
     }
 
@@ -327,7 +380,7 @@ public class KafkaClient {
      */
     public boolean addMessageListener(String consumerGroupId, boolean consumeFromBeginning,
             String topic, IKafkaMessageListener messageListener) {
-        KafkaConsumer kafkaConsumer = getKafkaConsumer(consumerGroupId, consumeFromBeginning);
+        KafkaMsgConsumer kafkaConsumer = getKafkaConsumer(consumerGroupId, consumeFromBeginning);
         return kafkaConsumer.addMessageListener(topic, messageListener);
     }
 
@@ -342,10 +395,14 @@ public class KafkaClient {
      */
     public boolean removeMessageListener(String consumerGroupId, String topic,
             IKafkaMessageListener messageListener) {
-        KafkaConsumer kafkaConsumer = cacheConsumers.get(consumerGroupId);
+        KafkaMsgConsumer kafkaConsumer = cacheConsumers.get(consumerGroupId);
         return kafkaConsumer != null ? kafkaConsumer.removeMessageListener(topic, messageListener)
                 : false;
     }
+
+    // public boolean hasTopic(String topic) {
+    //
+    // }
 
     /*----------------------------------------------------------------------*/
 
@@ -367,78 +424,8 @@ public class KafkaClient {
                 }
             });
 
-    /**
-     * Gets broker list in format {@code "host1:port1,host2:port2,..."}
-     * 
-     * @return
-     */
-    public String getBrokerList() {
-        String[] children = zkClient.getChildren("/brokers/ids");
-        List<String> hostsAndPorts = new ArrayList<String>();
-        for (String child : children) {
-            Object nodeData = zkClient.getDataJson("/brokers/ids/" + child);
-            String host = DPathUtils.getValue(nodeData, "host", String.class);
-            String port = DPathUtils.getValue(nodeData, "port", String.class);
-            hostsAndPorts.add(host + ":" + port);
-        }
-        return StringUtils.join(hostsAndPorts, ',');
-    }
-
-    /**
-     * Creates a new Java producer object.
-     * 
-     * @param type
-     * @return
-     */
     private KafkaProducer<String, byte[]> _newJavaProducer(ProducerType type) {
-        Properties producerConfigs = new Properties();
-        producerConfigs.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, getBrokerList());
-        producerConfigs.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG,
-                StringSerializer.class.getName());
-        producerConfigs.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG,
-                ByteArraySerializer.class.getName());
-        // producerConfigs.put("partitioner.class",
-        // RandomPartitioner.class.getName());
-
-        // 4mb buffer
-        producerConfigs.put(ProducerConfig.BUFFER_MEMORY_CONFIG, 4 * 1024 * 1024);
-        producerConfigs.put(ProducerConfig.BLOCK_ON_BUFFER_FULL_CONFIG, "true");
-        // ack timeout 10 seconds
-        producerConfigs.put(ProducerConfig.TIMEOUT_CONFIG, "10000");
-        // metadata fetch timeout: 10 seconds
-        producerConfigs.put(ProducerConfig.METADATA_FETCH_TIMEOUT_CONFIG, "10000");
-
-        /*
-         * As of Kafka 0.8.2 the Java producer seems not supporting
-         * "producer.type"!
-         */
-        switch (type) {
-        case FULL_ASYNC: {
-            producerConfigs.put(ProducerConfig.ACKS_CONFIG, "0");
-            // producerConfigs.put("request.required.acks", "0");
-            producerConfigs.put("producer.type", "async");
-            break;
-        }
-        case SYNC_LEADER_ACK: {
-            producerConfigs.put(ProducerConfig.ACKS_CONFIG, "1");
-            // producerConfigs.put("request.required.acks", "1");
-            producerConfigs.put("producer.type", "sync");
-            break;
-        }
-        case SYNC_ALL_ACKS: {
-            producerConfigs.put(ProducerConfig.ACKS_CONFIG, "all");
-            // producerConfigs.put("request.required.acks", "-1");
-            producerConfigs.put("producer.type", "sync");
-            break;
-        }
-        case SYNC_NO_ACK:
-        default: {
-            producerConfigs.put("request.required.acks", "0");
-            producerConfigs.put("producer.type", "sync");
-            break;
-        }
-        }
-        return new KafkaProducer<String, byte[]>(producerConfigs);
+        return KafkaHelper.createKafkaProducer(type, kafkaBootstrapServers);
     }
 
     /**

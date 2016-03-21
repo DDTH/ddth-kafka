@@ -1,31 +1,45 @@
 package com.github.ddth.kafka.qnd;
 
+import java.util.Date;
 import java.util.concurrent.TimeUnit;
 
+import com.github.ddth.commons.utils.DateFormatUtils;
 import com.github.ddth.kafka.KafkaClient;
 import com.github.ddth.kafka.KafkaMessage;
 
 public class QndConsumerExample1 {
 
     public static void main(String[] args) throws Exception {
-        final String zkConnString = "localhost:2181/kafka";
-        final String topic = "t1partition";
-        final String consumerGroupId = "group-id-1";
+        final String BOOTSTRAP_SERVERS = "localhost:9092";
+        final String TOPIC = "t1partition";
+        final String GROUP_ID = "mynewid-" + System.currentTimeMillis();
+        // final String GROUP_ID = "myoldid";
+        final boolean CONSUME_FROM_BEGINNING = true;
 
-        KafkaClient kafkaClient = new KafkaClient(zkConnString);
+        boolean messageConsumed = false;
+
+        KafkaClient kafkaClient = new KafkaClient(BOOTSTRAP_SERVERS);
         try {
             kafkaClient.init();
-            for (int i = 0; i < 11; i++) {
-                KafkaMessage msg = new KafkaMessage(topic, String.valueOf(i).getBytes());
+            kafkaClient.seekToEnd(GROUP_ID, TOPIC);
+
+            for (int i = 0; i < 10; i++) {
+                System.out.println("LOOP: ==[" + i + "]==");
+                KafkaMessage msg = new KafkaMessage(TOPIC, String.valueOf(i) + " / " + GROUP_ID
+                        + "-" + DateFormatUtils.toString(new Date(), "yyyy-MM-dd HH:mm:ss"));
                 kafkaClient.sendMessage(msg);
 
-                msg = kafkaClient.consumeMessage(consumerGroupId, true, topic, 1000,
-                        TimeUnit.MILLISECONDS);
+                // msg = kafkaClient.consumeMessage(GROUP_ID,
+                // CONSUME_FROM_BEGINNING, TOPIC);
+                msg = kafkaClient.consumeMessage(GROUP_ID, CONSUME_FROM_BEGINNING, TOPIC,
+                        messageConsumed ? 10 : 100, TimeUnit.MILLISECONDS);
                 if (msg != null) {
-                    System.out.println(msg.contentAsString());
+                    System.out.println("\tRECEIVED message: " + msg.contentAsString());
+                    messageConsumed = true;
                 } else {
-                    System.out.println("null");
+                    System.out.println("\tRECEIVED message: [null]");
                 }
+                // System.out.println();
             }
         } finally {
             kafkaClient.destroy();
