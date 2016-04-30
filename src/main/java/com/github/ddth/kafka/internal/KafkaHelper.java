@@ -84,7 +84,8 @@ public class KafkaHelper {
     }
 
     /**
-     * Creates a new {@link KafkaProducer} instance.
+     * Creates a new {@link KafkaProducer} instance, with default
+     * configurations.
      * 
      * @param type
      * @param bootstrapServers
@@ -92,10 +93,31 @@ public class KafkaHelper {
      */
     public static KafkaProducer<String, byte[]> createKafkaProducer(final ProducerType type,
             final String bootstrapServers) {
+        return createKafkaProducer(type, bootstrapServers, null);
+    }
+
+    /**
+     * Creates a new {@link KafkaProducer} instance, with custom configuration
+     * properties.
+     * 
+     * <p>
+     * Note: custom configuration properties will be populated <i>after</i> and
+     * <i>additional/overridden</i> to the default configuration.
+     * </p>
+     * 
+     * @param type
+     * @param bootstrapServers
+     * @param customProps
+     * @return
+     * @since 1.2.1
+     */
+    public static KafkaProducer<String, byte[]> createKafkaProducer(final ProducerType type,
+            final String bootstrapServers, Properties customProps) {
         Properties props = new Properties();
         props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
         props.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getName());
-        props.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, ByteArraySerializer.class.getName());
+        props.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG,
+                ByteArraySerializer.class.getName());
 
         // 4mb buffer & 1024-record batch size
         props.put(ProducerConfig.BUFFER_MEMORY_CONFIG, 4 * 1024 * 1024);
@@ -135,11 +157,18 @@ public class KafkaHelper {
             break;
         }
         }
+
+        if (customProps != null) {
+            // populate custom configurations
+            props.putAll(customProps);
+        }
+
         return new KafkaProducer<String, byte[]>(props);
     }
 
     /**
-     * Creates a new {@link KafkaConsumer} instance.
+     * Creates a new {@link KafkaConsumer} instance, with default
+     * configurations.
      * 
      * @param bootstrapServers
      * @param consumerGroupId
@@ -151,8 +180,33 @@ public class KafkaHelper {
     public static KafkaConsumer<String, byte[]> createKafkaConsumer(final String bootstrapServers,
             final String consumerGroupId, final boolean consumeFromBeginning,
             boolean autoCommitOffset, boolean leaderAutoRebalance) {
+        return createKafkaConsumer(bootstrapServers, consumerGroupId, consumeFromBeginning,
+                autoCommitOffset, leaderAutoRebalance, null);
+    }
+
+    /**
+     * Creates a new {@link KafkaConsumer} instance, with custom configuration
+     * properties.
+     * 
+     * <p>
+     * Note: custom configuration properties will be populated <i>after</i> and
+     * <i>additional/overridden</i> to the default configuration.
+     * </p>
+     * 
+     * @param bootstrapServers
+     * @param consumerGroupId
+     * @param consumeFromBeginning
+     * @param autoCommitOffset
+     * @param leaderAutoRebalance
+     * @param customProps
+     * @return
+     * @since 1.2.1
+     */
+    public static KafkaConsumer<String, byte[]> createKafkaConsumer(final String bootstrapServers,
+            final String consumerGroupId, final boolean consumeFromBeginning,
+            boolean autoCommitOffset, boolean leaderAutoRebalance, Properties customProps) {
         Properties props = KafkaHelper.buildKafkaConsumerProps(bootstrapServers, consumerGroupId,
-                consumeFromBeginning, autoCommitOffset, leaderAutoRebalance);
+                consumeFromBeginning, autoCommitOffset, leaderAutoRebalance, customProps);
         KafkaConsumer<String, byte[]> consumer = new KafkaConsumer<String, byte[]>(props);
         return consumer;
     }
@@ -170,6 +224,32 @@ public class KafkaHelper {
     public static Properties buildKafkaConsumerProps(final String bootstrapServers,
             final String consumerGroupId, final boolean consumeFromBeginning,
             final boolean autoCommitOffset, final boolean leaderAutoRebalance) {
+        return buildKafkaConsumerProps(bootstrapServers, consumerGroupId, consumeFromBeginning,
+                autoCommitOffset, leaderAutoRebalance, null);
+    }
+
+    /**
+     * Builds default consumer's properties, and applies custom configurations
+     * if any.
+     * 
+     * <p>
+     * Note: custom configuration properties will be populated <i>after</i> and
+     * <i>additional/overridden</i> to the default configuration.
+     * </p>
+     * 
+     * @param bootstrapServers
+     * @param consumerGroupId
+     * @param consumeFromBeginning
+     * @param autoCommitOffset
+     * @param leaderAutoRebalance
+     * @param customProps
+     * @since 1.2.1
+     * @return
+     */
+    public static Properties buildKafkaConsumerProps(final String bootstrapServers,
+            final String consumerGroupId, final boolean consumeFromBeginning,
+            final boolean autoCommitOffset, final boolean leaderAutoRebalance,
+            final Properties customProps) {
         Properties props = new Properties();
         props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
         props.put(ConsumerConfig.GROUP_ID_CONFIG, consumerGroupId);
@@ -186,8 +266,8 @@ public class KafkaHelper {
             props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, false);
         }
 
-        props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, consumeFromBeginning ? "earliest"
-                : "latest");
+        props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG,
+                consumeFromBeginning ? "earliest" : "latest");
 
         props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());
         props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG,
@@ -207,6 +287,11 @@ public class KafkaHelper {
 
         // max 64kb
         props.put(ConsumerConfig.MAX_PARTITION_FETCH_BYTES_CONFIG, 64 * 1024);
+
+        if (customProps != null) {
+            // populate custom configurations
+            props.putAll(customProps);
+        }
 
         return props;
     }

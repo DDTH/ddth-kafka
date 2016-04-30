@@ -4,6 +4,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
@@ -60,6 +61,8 @@ public class KafkaMsgConsumer {
 
     private String bootstrapServers;
     private KafkaConsumer<?, ?> metadataConsumer;
+
+    private Properties consumerProperties;
 
     /**
      * Constructs an new {@link KafkaMsgConsumer} object.
@@ -144,11 +147,38 @@ public class KafkaMsgConsumer {
     }
 
     /**
+     * Gets custom consumer configuration properties.
+     * 
+     * @return
+     * @since 1.2.1
+     */
+    public Properties getConsumerProperties() {
+        return consumerProperties;
+    }
+
+    /**
+     * Sets custom consumer configuration properties.
+     * 
+     * @param props
+     * @return
+     * @since 1.2.1
+     */
+    public KafkaMsgConsumer setConsumerProperties(Properties props) {
+        if (props == null) {
+            consumerProperties = null;
+        } else {
+            consumerProperties = new Properties();
+            consumerProperties.putAll(props);
+        }
+        return this;
+    }
+
+    /**
      * Initializing method.
      */
     public void init() {
         metadataConsumer = KafkaHelper.createKafkaConsumer(bootstrapServers, consumerGroupId,
-                consumeFromBeginning, true, false);
+                consumeFromBeginning, true, false, consumerProperties);
     }
 
     /**
@@ -263,7 +293,7 @@ public class KafkaMsgConsumer {
         KafkaConsumer<String, byte[]> consumer = topicConsumers.get(topic);
         if (consumer == null) {
             consumer = KafkaHelper.createKafkaConsumer(bootstrapServers, consumerGroupId,
-                    consumeFromBeginning, autoCommitOffset, autoCommitOffset);
+                    consumeFromBeginning, autoCommitOffset, autoCommitOffset, consumerProperties);
             KafkaConsumer<String, byte[]> existingConsumer = topicConsumers.putIfAbsent(topic,
                     consumer);
             if (existingConsumer != null) {

@@ -2,6 +2,7 @@ package com.github.ddth.kafka;
 
 import java.io.Closeable;
 import java.util.Map.Entry;
+import java.util.Properties;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -62,6 +63,8 @@ public class KafkaClient implements Closeable {
     private boolean myOwnExecutorService = true;
 
     private String kafkaBootstrapServers;
+
+    private Properties producerProperties, consumerProperties;
 
     /**
      * Constructs an new {@link KafkaClient} object.
@@ -127,6 +130,60 @@ public class KafkaClient implements Closeable {
     }
 
     /**
+     * Gets custom producer configuration properties.
+     * 
+     * @return
+     * @since 1.2.1
+     */
+    public Properties getProducerProperties() {
+        return producerProperties;
+    }
+
+    /**
+     * Sets custom producer configuration properties.
+     * 
+     * @param props
+     * @return
+     * @since 1.2.1
+     */
+    public KafkaClient setProducerProperties(Properties props) {
+        if (props == null) {
+            producerProperties = null;
+        } else {
+            producerProperties = new Properties();
+            producerProperties.putAll(props);
+        }
+        return this;
+    }
+
+    /**
+     * Gets custom consumer configuration properties.
+     * 
+     * @return
+     * @since 1.2.1
+     */
+    public Properties getConsumerProperties() {
+        return consumerProperties;
+    }
+
+    /**
+     * Sets custom consumer configuration properties.
+     * 
+     * @param props
+     * @return
+     * @since 1.2.1
+     */
+    public KafkaClient setConsumerProperties(Properties props) {
+        if (props == null) {
+            consumerProperties = null;
+        } else {
+            consumerProperties = new Properties();
+            consumerProperties.putAll(props);
+        }
+        return this;
+    }
+
+    /**
      * Init method.
      */
     public KafkaClient init() throws Exception {
@@ -177,7 +234,8 @@ public class KafkaClient implements Closeable {
 
         // // to fix the error
         // //
-        // "thread Thread[metrics-meter-tick-thread-1...] was interrupted but is still alive..."
+        // "thread Thread[metrics-meter-tick-thread-1...] was interrupted but is
+        // still alive..."
         // // since Kafka does not shutdown Metrics registry on close.
         // Metrics.defaultRegistry().shutdown();
 
@@ -210,9 +268,11 @@ public class KafkaClient implements Closeable {
     /* Mapping {consumer-group-id -> KafkaConsumer} */
     private ConcurrentMap<String, KafkaMsgConsumer> cacheConsumers = new ConcurrentHashMap<String, KafkaMsgConsumer>();
 
-    private KafkaMsgConsumer _newKafkaConsumer(String consumerGroupId, boolean consumeFromBeginning) {
+    private KafkaMsgConsumer _newKafkaConsumer(String consumerGroupId,
+            boolean consumeFromBeginning) {
         KafkaMsgConsumer kafkaConsumer = new KafkaMsgConsumer(getKafkaBootstrapServers(),
                 consumerGroupId, consumeFromBeginning);
+        kafkaConsumer.setConsumerProperties(consumerProperties);
         kafkaConsumer.init();
         return kafkaConsumer;
     }
@@ -230,7 +290,8 @@ public class KafkaClient implements Closeable {
      * @param consumeFromBeginning
      * @return
      */
-    private KafkaMsgConsumer getKafkaConsumer(String consumerGroupId, boolean consumeFromBeginning) {
+    private KafkaMsgConsumer getKafkaConsumer(String consumerGroupId,
+            boolean consumeFromBeginning) {
         KafkaMsgConsumer kafkaConsumer = cacheConsumers.get(consumerGroupId);
         if (kafkaConsumer == null) {
             kafkaConsumer = _newKafkaConsumer(consumerGroupId, consumeFromBeginning);
@@ -425,7 +486,7 @@ public class KafkaClient implements Closeable {
             });
 
     private KafkaProducer<String, byte[]> _newJavaProducer(ProducerType type) {
-        return KafkaHelper.createKafkaProducer(type, kafkaBootstrapServers);
+        return KafkaHelper.createKafkaProducer(type, kafkaBootstrapServers, producerProperties);
     }
 
     /**
@@ -465,8 +526,9 @@ public class KafkaClient implements Closeable {
         String key = message.key();
         String topic = message.topic();
         byte[] value = message.content();
-        ProducerRecord<String, byte[]> record = StringUtils.isEmpty(key) ? new ProducerRecord<String, byte[]>(
-                topic, value) : new ProducerRecord<String, byte[]>(topic, key, value);
+        ProducerRecord<String, byte[]> record = StringUtils.isEmpty(key)
+                ? new ProducerRecord<String, byte[]>(topic, value)
+                : new ProducerRecord<String, byte[]>(topic, key, value);
         final Future<RecordMetadata> fRecordMetadata = producer.send(record);
         FutureTask<KafkaMessage> result = new FutureTask<KafkaMessage>(
                 new Callable<KafkaMessage>() {

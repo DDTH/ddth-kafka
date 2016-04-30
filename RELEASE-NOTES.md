@@ -1,6 +1,12 @@
 ddth-kafka release notes
 ========================
 
+1.2.1 - 2016-04-29
+------------------
+
+- Accept custom `ProducerConfig`/`ConsumerConfig` when creating producers and consumers.
+
+
 1.2.0 - 2016-03-21
 ------------------
 
