@@ -8,21 +8,21 @@ import com.github.ddth.kafka.KafkaMessage;
 public class QndProducerExample {
 
     public static void main(String[] args) throws Exception {
-        final String zkConnString = "localhost:9092";
+        final String bootstrapServers = "localhost:9092";
         final String topic = "demo";
 
-        KafkaClient kafkaClient = new KafkaClient(zkConnString);
-        kafkaClient.init();
+        try (KafkaClient kafkaClient = new KafkaClient(bootstrapServers)) {
+            kafkaClient.init();
 
-        for (int i = 0; i < 10; i++) {
-            String msg = i + ":" + System.currentTimeMillis();
-            byte[] content = msg.getBytes();
-            Future<KafkaMessage> result = kafkaClient.sendMessage(new KafkaMessage().topic(topic)
-                    .content(content));
-            // System.out.println(result.get(1000, TimeUnit.MILLISECONDS));
-            System.out.println(result.get());
+            for (int i = 0; i < 10; i++) {
+                String msg = i + ":" + System.currentTimeMillis();
+                byte[] content = msg.getBytes();
+                Future<KafkaMessage> result = kafkaClient
+                        .sendMessage(new KafkaMessage().topic(topic).content(content));
+                // System.out.println(result.get(1000, TimeUnit.MILLISECONDS));
+                System.out.println(result.get());
+            }
         }
 
-        kafkaClient.destroy();
     }
 }

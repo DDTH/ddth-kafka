@@ -1,6 +1,5 @@
 package com.github.ddth.kafka.qnd;
 
-import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
 import com.github.ddth.kafka.KafkaClient;
@@ -9,11 +8,11 @@ import com.github.ddth.kafka.KafkaMessage;
 public class QndConsumerThread {
 
     public static void main(String[] args) throws Exception {
-        final Random RAND = new Random(System.currentTimeMillis());
+        // final Random RAND = new Random(System.currentTimeMillis());
         final String BOOTSTRAP_SERVERS = "localhost:9092";
         // final String GROUP_ID = "mynewid-" + System.currentTimeMillis();
         final String GROUP_ID = "myoldid";
-        final boolean CONSUME_FROM_BEGINNING = true;
+        // final boolean CONSUME_FROM_BEGINNING = true;
         final KafkaClient.ProducerType PRODUCER_TYPE = KafkaClient.ProducerType.FULL_ASYNC;
 
         final String TOPIC = "demo";

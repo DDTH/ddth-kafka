@@ -18,8 +18,7 @@ public class QndConsumerExample1 {
 
         boolean messageConsumed = false;
 
-        KafkaClient kafkaClient = new KafkaClient(BOOTSTRAP_SERVERS);
-        try {
+        try (KafkaClient kafkaClient = new KafkaClient(BOOTSTRAP_SERVERS)) {
             kafkaClient.init();
             kafkaClient.seekToEnd(GROUP_ID, TOPIC);
 
@@ -41,8 +40,6 @@ public class QndConsumerExample1 {
                 }
                 // System.out.println();
             }
-        } finally {
-            kafkaClient.destroy();
         }
     }
 

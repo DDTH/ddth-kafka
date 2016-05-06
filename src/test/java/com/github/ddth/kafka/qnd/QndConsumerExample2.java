@@ -16,8 +16,7 @@ public class QndConsumerExample2 {
         final String GROUP_ID = "myoldid";
         final boolean CONSUME_FROM_BEGINNING = true;
 
-        KafkaClient kafkaClient = new KafkaClient(BOOTSTRAP_SERVERS);
-        try {
+        try (KafkaClient kafkaClient = new KafkaClient(BOOTSTRAP_SERVERS)) {
             kafkaClient.init();
             kafkaClient.seekToEnd(GROUP_ID, TOPIC);
 
@@ -42,8 +41,6 @@ public class QndConsumerExample2 {
                         TimeUnit.MILLISECONDS);
             }
             System.out.println("Num received: " + COUNTER);
-        } finally {
-            kafkaClient.destroy();
         }
     }
 }

@@ -29,13 +29,13 @@ public class QndConsumerManual {
             long timestart = System.currentTimeMillis();
             long RECEIVED_MSGS = 0;
             for (int i = 0; i < NUM_MSGS; i++) {
-                KafkaMessage msg = new KafkaMessage(TOPIC, "message - " + i + ": "
-                        + System.currentTimeMillis());
+                KafkaMessage msg = new KafkaMessage(TOPIC,
+                        "message - " + i + ": " + System.currentTimeMillis());
                 kafkaClient.sendMessage(PRODUCER_TYPE, msg);
-                long t1 = System.currentTimeMillis();
+                // long t1 = System.currentTimeMillis();
                 msg = kafkaClient.consumeMessage(GROUP_ID, CONSUME_FROM_BEGINNING, TOPIC, 10000,
                         TimeUnit.MILLISECONDS);
-                long t2 = System.currentTimeMillis();
+                // long t2 = System.currentTimeMillis();
                 if (msg != null) {
                     RECEIVED_MSGS++;
                 }
@@ -66,13 +66,13 @@ public class QndConsumerManual {
             long timestart = System.currentTimeMillis();
             long RECEIVED_MSGS = 0;
             for (int i = 0; i < NUM_MSGS; i++) {
-                KafkaMessage msg = new KafkaMessage(TOPIC, "message - " + i + ": "
-                        + System.currentTimeMillis());
+                KafkaMessage msg = new KafkaMessage(TOPIC,
+                        "message - " + i + ": " + System.currentTimeMillis());
                 kafkaClient.sendMessage(PRODUCER_TYPE, msg);
-                long t1 = System.currentTimeMillis();
+                // long t1 = System.currentTimeMillis();
                 msg = kafkaClient.consumeMessage(GROUP_ID, CONSUME_FROM_BEGINNING, TOPIC, 10000,
                         TimeUnit.MILLISECONDS);
-                long t2 = System.currentTimeMillis();
+                // long t2 = System.currentTimeMillis();
                 if (msg != null) {
                     RECEIVED_MSGS++;
                 }
@@ -103,13 +103,13 @@ public class QndConsumerManual {
             long timestart = System.currentTimeMillis();
             long RECEIVED_MSGS = 0;
             for (int i = 0; i < NUM_MSGS; i++) {
-                KafkaMessage msg = new KafkaMessage(TOPIC, "message - " + i + ": "
-                        + System.currentTimeMillis());
+                KafkaMessage msg = new KafkaMessage(TOPIC,
+                        "message - " + i + ": " + System.currentTimeMillis());
                 kafkaClient.sendMessage(PRODUCER_TYPE, msg);
-                long t1 = System.currentTimeMillis();
+                // long t1 = System.currentTimeMillis();
                 msg = kafkaClient.consumeMessage(GROUP_ID, CONSUME_FROM_BEGINNING, TOPIC, 10000,
                         TimeUnit.MILLISECONDS);
-                long t2 = System.currentTimeMillis();
+                // long t2 = System.currentTimeMillis();
                 if (msg != null) {
                     RECEIVED_MSGS++;
                 }
@@ -140,13 +140,13 @@ public class QndConsumerManual {
             long timestart = System.currentTimeMillis();
             long RECEIVED_MSGS = 0;
             for (int i = 0; i < NUM_MSGS; i++) {
-                KafkaMessage msg = new KafkaMessage(TOPIC, "message - " + i + ": "
-                        + System.currentTimeMillis());
+                KafkaMessage msg = new KafkaMessage(TOPIC,
+                        "message - " + i + ": " + System.currentTimeMillis());
                 kafkaClient.sendMessage(PRODUCER_TYPE, msg);
-                long t1 = System.currentTimeMillis();
+                // long t1 = System.currentTimeMillis();
                 msg = kafkaClient.consumeMessage(GROUP_ID, CONSUME_FROM_BEGINNING, TOPIC, 10000,
                         TimeUnit.MILLISECONDS);
-                long t2 = System.currentTimeMillis();
+                // long t2 = System.currentTimeMillis();
                 if (msg != null) {
                     RECEIVED_MSGS++;
                 }
