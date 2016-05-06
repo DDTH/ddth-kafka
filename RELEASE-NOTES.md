@@ -1,6 +1,12 @@
 ddth-kafka release notes
 ========================
 
+1.2.1.1 - 2016-05-06
+--------------------
+
+- Limit the executor service's number of threads to (1-4) to avoid OOM exception.
+
+
 1.2.1 - 2016-04-29
 ------------------
 

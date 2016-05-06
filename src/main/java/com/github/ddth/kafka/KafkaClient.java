@@ -188,7 +188,14 @@ public class KafkaClient implements Closeable {
      */
     public KafkaClient init() throws Exception {
         if (executorService == null) {
-            executorService = Executors.newCachedThreadPool();
+            int numThreads = Runtime.getRuntime().availableProcessors();
+            if (numThreads < 1) {
+                numThreads = 1;
+            }
+            if (numThreads > 4) {
+                numThreads = 4;
+            }
+            executorService = Executors.newFixedThreadPool(numThreads);
             myOwnExecutorService = true;
         } else {
             myOwnExecutorService = false;

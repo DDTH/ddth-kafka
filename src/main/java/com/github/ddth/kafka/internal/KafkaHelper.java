@@ -119,6 +119,9 @@ public class KafkaHelper {
         props.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG,
                 ByteArraySerializer.class.getName());
 
+        // max request size: 1mb
+        props.put(ProducerConfig.MAX_REQUEST_SIZE_CONFIG, 1 * 1024 * 1024);
+
         // 4mb buffer & 1024-record batch size
         props.put(ProducerConfig.BUFFER_MEMORY_CONFIG, 4 * 1024 * 1024);
         props.put(ProducerConfig.BATCH_SIZE_CONFIG, 1024);
@@ -285,8 +288,8 @@ public class KafkaHelper {
         props.put("controlled.shutdown.max.retries", 3);
         props.put("controlled.shutdown.retry.backoff.ms", 3000);
 
-        // max 64kb
-        props.put(ConsumerConfig.MAX_PARTITION_FETCH_BYTES_CONFIG, 64 * 1024);
+        // max 1mb
+        props.put(ConsumerConfig.MAX_PARTITION_FETCH_BYTES_CONFIG, 1 * 1024 * 1024);
 
         if (customProps != null) {
             // populate custom configurations
