@@ -1,6 +1,13 @@
 ddth-kafka release notes
 ========================
 
+1.3.0 - 2017-01-11
+------------------
+
+- Bump to `com.github.ddth:ddth-parent:6`, now requires Java 8+!
+- Bump to `kafka-clients:0.10.1.1`.
+
+
 1.2.1.1 - 2016-05-06
 --------------------
 

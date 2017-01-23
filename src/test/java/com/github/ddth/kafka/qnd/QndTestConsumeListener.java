@@ -10,7 +10,7 @@ import com.github.ddth.kafka.KafkaClient;
 import com.github.ddth.kafka.KafkaMessage;
 
 /*
- * mvn package exec:java -Dexec.classpathScope=test -Dexec.mainClass="com.github.ddth.kafka.qnd.QndTestConsumeListener" -Dzookeeper=localhost:2181/kafka -Dtopic=topic -Dgroup=group-id-1 -DnumItems=100
+ * mvn package exec:java -Dexec.classpathScope=test -Dexec.mainClass="com.github.ddth.kafka.qnd.QndTestConsumeListener" -Dbrokers=localhost:9092 -Dtopic=topic -Dgroup=group-id-1 -DnumItems=100
  */
 public class QndTestConsumeListener {
 
@@ -19,17 +19,21 @@ public class QndTestConsumeListener {
     private static void queueAndConsume(KafkaClient kafkaClient, String topic,
             String consumerGroupId, int numItems) throws InterruptedException {
 
-        System.out.println("Putting [" + numItems + "] items to queue [" + topic + " / "
+        System.out.print("Putting [" + numItems + "] items to queue [" + topic + " / "
                 + consumerGroupId + "]...");
+        long t1 = System.currentTimeMillis();
         for (int i = 0; i < numItems; i++) {
             String content = System.currentTimeMillis() + " - " + i;
             KafkaMessage kmsg = new KafkaMessage(topic, content);
             kafkaClient.sendMessage(kmsg);
         }
+        System.out.println((System.currentTimeMillis() - t1) + "ms");
 
         Thread.sleep(1000);
+
+        t1 = System.currentTimeMillis();
         final BlockingQueue<KafkaMessage> queue = new LinkedBlockingQueue<KafkaMessage>();
-        kafkaClient.addMessageListener(consumerGroupId, true, topic, new IKafkaMessageListener() {
+        kafkaClient.addMessageListener(consumerGroupId, false, topic, new IKafkaMessageListener() {
             @Override
             public void onMessage(KafkaMessage message) {
                 queue.add(message);
@@ -40,21 +44,16 @@ public class QndTestConsumeListener {
             }
         });
 
-        Thread.sleep(1000);
         int counter = 0;
         KafkaMessage kmsg = queue.poll(1000, TimeUnit.MILLISECONDS);
-        while (kmsg != null) {
-            counter++;
-            kmsg = queue.poll(1000, TimeUnit.MILLISECONDS);
-            if (kmsg == null) {
-                kmsg = queue.poll(1000, TimeUnit.MILLISECONDS);
-                if (kmsg == null) {
-                    kmsg = queue.poll(1000, TimeUnit.MILLISECONDS);
-                }
+        while (kmsg != null || (counter < numItems && System.currentTimeMillis() - t1 < 60000)) {
+            if (kmsg != null) {
+                counter++;
             }
+            kmsg = queue.poll(1000, TimeUnit.MILLISECONDS);
         }
         System.out.println("Consumed [" + counter + "] items from queue [" + topic + " / "
-                + consumerGroupId + "].");
+                + consumerGroupId + "] in " + (System.currentTimeMillis() - t1) + "ms.");
     }
 
     /**
@@ -64,9 +63,9 @@ public class QndTestConsumeListener {
      * @throws Exception
      */
     public static void main(String[] args) throws Exception {
-        String zkConnString = System.getProperty("zookeeper", "localhost:2181/kafka");
-        String topic = System.getProperty("topic", "t4partition");
-        String consumerGroupId = System.getProperty("group", "group-id-1");
+        String brokers = System.getProperty("brokers", "localhost:9092");
+        String topic = System.getProperty("topic", "demo");
+        String consumerGroupId = System.getProperty("group", "mygroupid");
         int numItems = 100;
         try {
             numItems = Integer.parseInt(System.getProperty("numItems", "100"));
@@ -74,21 +73,17 @@ public class QndTestConsumeListener {
             numItems = 100;
         }
 
-        System.out.println("Zookeeper: " + zkConnString);
+        System.out.println("Brokers  : " + brokers);
         System.out.println("Topic    : " + topic);
         System.out.println("Group    : " + consumerGroupId);
         System.out.println("Num Items: " + numItems);
 
-        final KafkaClient kafkaClient = new KafkaClient(zkConnString);
-        try {
+        try (KafkaClient kafkaClient = new KafkaClient(brokers)) {
             kafkaClient.init();
-
             queueAndConsume(kafkaClient, topic, consumerGroupId, numItems);
-        } finally {
-            kafkaClient.destroy();
         }
 
-        Thread.sleep(4000);
+        Thread.sleep(1000);
     }
 
 }

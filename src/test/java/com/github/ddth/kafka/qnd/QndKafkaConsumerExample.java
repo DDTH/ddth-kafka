@@ -15,7 +15,7 @@ public class QndKafkaConsumerExample {
         final String BOOTSTRAP_SERVERS = "localhost:9092";
         final String TOPIC = "demo";
         // final String GROUP_ID = "mynewid-" + System.currentTimeMillis();
-        final String GROUP_ID = "myoldid";
+        final String GROUP_ID = "mygroupid";
         final boolean CONSUME_FROM_BEGINNING = true;
 
         KafkaConsumer<String, byte[]> consumer = KafkaHelper.createKafkaConsumer(BOOTSTRAP_SERVERS,

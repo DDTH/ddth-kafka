@@ -17,12 +17,12 @@ public class QndTestTopicSeek {
     public static void main(String[] args) throws Exception {
         final String BOOTSTRAP_SERVERS = "localhost:9092";
         final String TOPIC = "demo";
-        final String GROUP_ID = "mynewid" + System.currentTimeMillis();
-        // final String GROUP_ID = "myoldgroupid";
+        // final String GROUP_ID = "mynewid" + System.currentTimeMillis();
+        final String GROUP_ID = "myoldgroupid";
         final boolean CONSUME_FROM_BEGINNING = true;
 
-        try (KafkaProducer<String, byte[]> producer = KafkaHelper.createKafkaProducer(
-                ProducerType.FULL_ASYNC, BOOTSTRAP_SERVERS)) {
+        try (KafkaProducer<String, byte[]> producer = KafkaHelper
+                .createKafkaProducer(ProducerType.FULL_ASYNC, BOOTSTRAP_SERVERS)) {
             try (KafkaConsumer<String, byte[]> consumer = KafkaHelper.createKafkaConsumer(
                     BOOTSTRAP_SERVERS, GROUP_ID, CONSUME_FROM_BEGINNING, true, true)) {
                 KafkaHelper.seekToEnd(consumer, TOPIC);

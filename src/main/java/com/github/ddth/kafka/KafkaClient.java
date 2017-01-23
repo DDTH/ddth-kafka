@@ -1,8 +1,10 @@
 package com.github.ddth.kafka;
 
 import java.io.Closeable;
+import java.util.List;
 import java.util.Map.Entry;
 import java.util.Properties;
+import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -14,9 +16,11 @@ import java.util.concurrent.FutureTask;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.commons.lang3.StringUtils;
+import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.clients.producer.RecordMetadata;
+import org.apache.kafka.common.PartitionInfo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -66,6 +70,9 @@ public class KafkaClient implements Closeable {
 
     private Properties producerProperties, consumerProperties;
 
+    private String metadataConsumerGroupId = "ddth-kafka";
+    private KafkaConsumer<String, byte[]> metadataConsumer;
+
     /**
      * Constructs an new {@link KafkaClient} object.
      */
@@ -96,6 +103,28 @@ public class KafkaClient implements Closeable {
     public KafkaClient(String kafkaBootstrapServers, ExecutorService executor) {
         setKafkaBootstrapServers(kafkaBootstrapServers);
         setExecutorService(executor);
+    }
+
+    /**
+     * Group-id for the metadata consumer.
+     * 
+     * @return
+     * @since 1.3.0
+     */
+    public String getMetadataConsumerGroupId() {
+        return metadataConsumerGroupId;
+    }
+
+    /**
+     * Sets group-id for the metadata consumer.
+     * 
+     * @param metadataConsumerGroupId
+     * @return
+     * @since 1.3.0
+     */
+    public KafkaClient setMetadataConsumerGroupId(String metadataConsumerGroupId) {
+        this.metadataConsumerGroupId = metadataConsumerGroupId;
+        return this;
     }
 
     /**
@@ -188,18 +217,18 @@ public class KafkaClient implements Closeable {
      */
     public KafkaClient init() throws Exception {
         if (executorService == null) {
-            int numThreads = Runtime.getRuntime().availableProcessors();
-            if (numThreads < 1) {
-                numThreads = 1;
-            }
-            if (numThreads > 4) {
-                numThreads = 4;
-            }
+            int numThreads = Math.min(Math.max(Runtime.getRuntime().availableProcessors(), 1), 4);
             executorService = Executors.newFixedThreadPool(numThreads);
             myOwnExecutorService = true;
         } else {
             myOwnExecutorService = false;
         }
+
+        if (metadataConsumer == null) {
+            metadataConsumer = KafkaHelper.createKafkaConsumer(getKafkaBootstrapServers(),
+                    getMetadataConsumerGroupId(), true, false, true);
+        }
+
         return this;
     }
 
@@ -217,6 +246,16 @@ public class KafkaClient implements Closeable {
      * Destroying method.
      */
     public void destroy() {
+        try {
+            if (metadataConsumer != null) {
+                metadataConsumer.close();
+            }
+        } catch (Exception e) {
+            LOGGER.warn(e.getMessage(), e);
+        } finally {
+            metadataConsumer = null;
+        }
+
         try {
             if (cacheJavaProducers != null) {
                 cacheJavaProducers.invalidateAll();
@@ -270,6 +309,54 @@ public class KafkaClient implements Closeable {
     // }
 
     /*----------------------------------------------------------------------*/
+    /* ADMIN */
+    /*----------------------------------------------------------------------*/
+    /**
+     * Checks if a Kafka topic exists.
+     * 
+     * @param topicName
+     * @return
+     * @since 1.2.0
+     */
+    public boolean topicExists(String topicName) {
+        return getKafkaConsumer(getMetadataConsumerGroupId(), false).topicExists(topicName);
+    }
+
+    /**
+     * Gets number of partitions of a topic.
+     * 
+     * @param topicName
+     * @return topic's number of partitions, or {@code 0} if the topic does not
+     *         exist
+     * @since 1.2.0
+     */
+    public int getNumPartitions(String topicName) {
+        return getKafkaConsumer(getMetadataConsumerGroupId(), false).getNumPartitions(topicName);
+    }
+
+    /**
+     * Gets partition information of a topic.
+     * 
+     * @param topicName
+     * @return list of {@link PartitionInfo} or {@code null} if topic does not
+     *         exist.
+     * @since 1.3.0
+     */
+    public List<PartitionInfo> getPartitionInfo(String topicName) {
+        return getKafkaConsumer(getMetadataConsumerGroupId(), false).getPartitionInfo(topicName);
+    }
+
+    /**
+     * Gets all available topics.
+     * 
+     * @return
+     * @since 1.3.0
+     */
+    public Set<String> getTopics() {
+        return getKafkaConsumer(getMetadataConsumerGroupId(), false).getTopics();
+    }
+
+    /*----------------------------------------------------------------------*/
     /* CONSUMER */
     /*----------------------------------------------------------------------*/
     /* Mapping {consumer-group-id -> KafkaConsumer} */
@@ -280,6 +367,7 @@ public class KafkaClient implements Closeable {
         KafkaMsgConsumer kafkaConsumer = new KafkaMsgConsumer(getKafkaBootstrapServers(),
                 consumerGroupId, consumeFromBeginning);
         kafkaConsumer.setConsumerProperties(consumerProperties);
+        kafkaConsumer.setMetadataConsumer(metadataConsumer);
         kafkaConsumer.init();
         return kafkaConsumer;
     }
@@ -309,33 +397,6 @@ public class KafkaClient implements Closeable {
             }
         }
         return kafkaConsumer;
-    }
-
-    private String myGroupId = "__" + this.getClass().getCanonicalName();
-
-    /**
-     * Checks if a Kafka topic exists.
-     * 
-     * @param topic
-     * @return
-     * @since 1.2.0
-     */
-    public boolean topicExists(String topic) {
-        KafkaMsgConsumer consumer = getKafkaConsumer(myGroupId, false);
-        return consumer.topicExists(topic);
-    }
-
-    /**
-     * Gets number of partitions of a topic.
-     * 
-     * @param topic
-     * @return topic's number of partitions, or {@code 0} if the topic does not
-     *         exist
-     * @since 1.2.0
-     */
-    public int getNumPartitions(String topic) {
-        KafkaMsgConsumer consumer = getKafkaConsumer(myGroupId, false);
-        return consumer.getNumPartitions(topic);
     }
 
     /**

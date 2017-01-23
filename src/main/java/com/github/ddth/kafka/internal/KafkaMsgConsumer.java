@@ -2,6 +2,7 @@ package com.github.ddth.kafka.internal;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
@@ -61,6 +62,7 @@ public class KafkaMsgConsumer {
 
     private String bootstrapServers;
     private KafkaConsumer<?, ?> metadataConsumer;
+    private boolean myOwnMetadataConsumer = true;
 
     private Properties consumerProperties;
 
@@ -74,12 +76,58 @@ public class KafkaMsgConsumer {
 
     /**
      * Constructs an new {@link KafkaMsgConsumer} object.
+     * 
+     * @since 1.3.0
+     */
+    public KafkaMsgConsumer(String bootstrapServers, String consumerGroupId,
+            KafkaConsumer<?, ?> metadataConsumer) {
+        this.bootstrapServers = bootstrapServers;
+        this.consumerGroupId = consumerGroupId;
+        setMetadataConsumer(metadataConsumer);
+    }
+
+    /**
+     * Constructs an new {@link KafkaMsgConsumer} object.
      */
     public KafkaMsgConsumer(String bootstrapServers, String consumerGroupId,
             boolean consumeFromBeginning) {
         this.bootstrapServers = bootstrapServers;
         this.consumerGroupId = consumerGroupId;
         this.consumeFromBeginning = consumeFromBeginning;
+    }
+
+    /**
+     * Constructs an new {@link KafkaMsgConsumer} object.
+     * 
+     * @since 1.3.0
+     */
+    public KafkaMsgConsumer(String bootstrapServers, String consumerGroupId,
+            boolean consumeFromBeginning, KafkaConsumer<?, ?> metadataConsumer) {
+        this.bootstrapServers = bootstrapServers;
+        this.consumerGroupId = consumerGroupId;
+        this.consumeFromBeginning = consumeFromBeginning;
+        setMetadataConsumer(metadataConsumer);
+    }
+
+    /**
+     * 
+     * @return
+     * @since 1.3.0
+     */
+    public KafkaConsumer<?, ?> getMetadataConsumer() {
+        return metadataConsumer;
+    }
+
+    /**
+     * 
+     * @param metadataConsumer
+     * @return
+     * @since 1.3.0
+     */
+    public KafkaMsgConsumer setMetadataConsumer(KafkaConsumer<?, ?> metadataConsumer) {
+        this.metadataConsumer = metadataConsumer;
+        myOwnMetadataConsumer = false;
+        return this;
     }
 
     /**
@@ -177,15 +225,20 @@ public class KafkaMsgConsumer {
      * Initializing method.
      */
     public void init() {
-        metadataConsumer = KafkaHelper.createKafkaConsumer(bootstrapServers, consumerGroupId,
-                consumeFromBeginning, true, false, consumerProperties);
+        if (metadataConsumer == null) {
+            metadataConsumer = KafkaHelper.createKafkaConsumer(bootstrapServers, consumerGroupId,
+                    consumeFromBeginning, true, false, consumerProperties);
+            myOwnMetadataConsumer = true;
+        } else {
+            myOwnMetadataConsumer = false;
+        }
     }
 
     /**
      * Destroying method.
      */
     public void destroy() {
-        if (metadataConsumer != null) {
+        if (metadataConsumer != null && myOwnMetadataConsumer) {
             try {
                 metadataConsumer.close();
             } catch (Exception e) {
@@ -235,27 +288,54 @@ public class KafkaMsgConsumer {
     /**
      * Checks if a Kafka topic exists.
      * 
-     * @param topic
+     * @param topicName
      * @return
      * @since 1.2.0
      */
-    public boolean topicExists(String topic) {
+    public boolean topicExists(String topicName) {
         Map<String, List<PartitionInfo>> topicInfo = getTopicInfo();
-        return topicInfo != null && topicInfo.containsKey(topic);
+        return topicInfo != null && topicInfo.containsKey(topicName);
     }
 
     /**
      * Gets number of partitions of a topic.
      * 
-     * @param topic
+     * @param topicName
      * @return topic's number of partitions, or {@code 0} if the topic does not
      *         exist
      * @since 1.2.0
      */
-    public int getNumPartitions(String topic) {
+    public int getNumPartitions(String topicName) {
         Map<String, List<PartitionInfo>> topicInfo = getTopicInfo();
-        List<PartitionInfo> partitionInfo = topicInfo != null ? topicInfo.get(topic) : null;
+        List<PartitionInfo> partitionInfo = topicInfo != null ? topicInfo.get(topicName) : null;
         return partitionInfo != null ? partitionInfo.size() : 0;
+    }
+
+    /**
+     * Gets partition information of a topic.
+     * 
+     * @param topicName
+     * @return list of {@link PartitionInfo} or {@code null} if topic does not
+     *         exist.
+     * @since 1.3.0
+     */
+    public List<PartitionInfo> getPartitionInfo(String topicName) {
+        Map<String, List<PartitionInfo>> topicInfo = getTopicInfo();
+        List<PartitionInfo> partitionInfo = topicInfo != null ? topicInfo.get(topicName) : null;
+        return partitionInfo != null ? Collections.unmodifiableList(partitionInfo) : null;
+    }
+
+    /**
+     * Gets all available topics.
+     * 
+     * @return
+     * @since 1.3.0
+     */
+    @SuppressWarnings("unchecked")
+    public Set<String> getTopics() {
+        Map<String, List<PartitionInfo>> topicInfo = getTopicInfo();
+        Set<String> topics = topicInfo != null ? topicInfo.keySet() : null;
+        return topics != null ? Collections.unmodifiableSet(topics) : Collections.EMPTY_SET;
     }
 
     /**
@@ -437,7 +517,10 @@ public class KafkaMsgConsumer {
             } catch (CommitFailedException e) {
                 LOGGER.warn(e.getMessage(), e);
             }
-            ConsumerRecords<String, byte[]> crList = consumer.poll(waitTimeUnit.toMillis(waitTime));
+
+            subscription = consumer.subscription();
+            ConsumerRecords<String, byte[]> crList = subscription != null && subscription.size() > 0
+                    ? consumer.poll(waitTimeUnit.toMillis(waitTime)) : null;
             if (crList != null) {
                 for (ConsumerRecord<String, byte[]> cr : crList) {
                     buffer.offer(cr);

@@ -1,24 +1,24 @@
 ddth-kafka 
 ==========
 
-DDTH's Kafka Libraries and Utilities: simplify using [Apache Kafka](http://kafka.apache.org/).
+DDTH's Kafka Libraries and Utilities: simplify [Apache Kafka](http://kafka.apache.org/) usage.
 
 Project home:
 [https://github.com/DDTH/ddth-kafka](https://github.com/DDTH/ddth-kafka)
 
-OSGi environment: `ddth-kafka` is packaged as an OSGi bundle.
+**ddth-kafka requires Java 8+ since v1.3.0**
 
 
 ## License ##
 
-See LICENSE.txt for details. Copyright (c) 2014-2016 Thanh Ba Nguyen.
+See LICENSE.txt for details. Copyright (c) 2014-2017 Thanh Ba Nguyen.
 
 Third party libraries are distributed under their own licenses.
 
 
-## Installation #
+## Installation ##
 
-Latest release version: `1.2.1.1`. See [RELEASE-NOTES.md](RELEASE-NOTES.md).
+Latest release version: `1.3.0`. See [RELEASE-NOTES.md](RELEASE-NOTES.md).
 
 Maven dependency:
 
@@ -26,7 +26,7 @@ Maven dependency:
 <dependency>
 	<groupId>com.github.ddth</groupId>
 	<artifactId>ddth-kafka</artifactId>
-	<version>1.2.1.1</version>
+	<version>1.3.0</version>
 </dependency>
 ```
 
@@ -35,8 +35,8 @@ Maven dependency:
 
 **IMPORTANT!**
 
-Since v1.2.0 `ddth-kafka` uses the new version 0.9.x of Kafka producer and consumer.
-It does _not_ work with Kafka broker pre-0.9. Please [upgrade your Kafka broker cluster to 0.9.x](http://kafka.apache.org/documentation.html#upgrade)!
+Since v1.3.0 `ddth-kafka` uses the new version 0.10.x of Kafka producer and consumer.
+It may _not_ work with old Kafka brokers. [Upgrade your Kafka broker cluster](http://kafka.apache.org/documentation.html#upgrade)!
 
 
 **Initialize a Kafka client:**
@@ -63,6 +63,8 @@ kafkaClient.sendMessage(msg);
 msg = new KafkaMessage("topic", "msg-key", "message-content-2");
 kafkaClient.sendMessage(msg);
 ```
+_Note: KafkaClient.sendMessage(KafkaMessage) is asynchronous!_
+
 
 **Consume one single message:**
 
@@ -97,7 +99,7 @@ IKafkaMessageListener messageListener = new IKafkaMessageListener() {
 }
 kafkaClient.addMessageListener(consumerGroupId, consumeFromBeginning, topic, msgListener);
 
-//stop receving message
+//stop receving messages
 kafkaClient.removeMessageListener(consumerGroupId, topic, messageListener);
 ```
 

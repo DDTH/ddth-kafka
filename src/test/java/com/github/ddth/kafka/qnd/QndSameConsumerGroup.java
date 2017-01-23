@@ -22,16 +22,18 @@ public class QndSameConsumerGroup {
 
     private static void emptyQueue(KafkaClient kafkaClient, String topic, String consumerGroupId)
             throws InterruptedException {
-        System.out.println("Emptying queue...[" + topic + " / " + consumerGroupId + "]");
+        System.out.print("Emptying queue...[" + topic + " / " + consumerGroupId + "]...");
+        long t1 = System.currentTimeMillis();
         long counter = 0;
         KafkaMessage kmsg = kafkaClient.consumeMessage(consumerGroupId, true, topic, 1000,
                 TimeUnit.MILLISECONDS);
         while (kmsg != null) {
+            counter++;
             kmsg = kafkaClient.consumeMessage(consumerGroupId, true, topic, 1000,
                     TimeUnit.MILLISECONDS);
-            counter++;
         }
-        System.out.println("Emptying queue..." + counter);
+        System.out.println(
+                "Emptying queue..." + counter + " in " + (System.currentTimeMillis() - t1) + "ms.");
     }
 
     private static void putToQueue(KafkaClient kafkaClient, String topic, long numItems) {
@@ -51,12 +53,11 @@ public class QndSameConsumerGroup {
      * @throws Exception
      */
     public static void main(String[] args) throws Exception {
-        final String zkConnString = "localhost:2181/kafka";
-        final String topic = "t4partition";
-        final String consumerGroupId = "group-id-1";
+        final String brokers = "localhost:9092";
+        final String topic = "demo2";
+        final String consumerGroupId = "mygroupid";
 
-        final KafkaClient kafkaClient = new KafkaClient(zkConnString);
-        try {
+        try (KafkaClient kafkaClient = new KafkaClient(brokers)) {
             kafkaClient.init();
             emptyQueue(kafkaClient, topic, consumerGroupId);
 
@@ -110,9 +111,7 @@ public class QndSameConsumerGroup {
             System.out.println("Receive size : " + RECEIVE.size());
             System.out.println("Check        : " + SENT.equals(RECEIVE));
 
-            Thread.sleep(4000);
-        } finally {
-            kafkaClient.destroy();
+            Thread.sleep(1000);
         }
     }
 

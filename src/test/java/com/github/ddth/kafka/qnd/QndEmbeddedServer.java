@@ -1,45 +1,29 @@
-package com.github.ddth.kafka.test;
+package com.github.ddth.kafka.qnd;
 
 import java.io.File;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.Properties;
-import java.util.concurrent.TimeUnit;
 
 import org.apache.kafka.common.security.JaasUtils;
 import org.apache.zookeeper.server.NIOServerCnxnFactory;
 import org.apache.zookeeper.server.ServerCnxnFactory;
 import org.apache.zookeeper.server.ZooKeeperServer;
-import org.junit.After;
-import org.junit.Before;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.github.ddth.kafka.KafkaClient;
-import com.github.ddth.kafka.KafkaClient.ProducerType;
 import com.github.ddth.kafka.KafkaMessage;
+import com.yammer.metrics.Metrics;
 
-import junit.framework.TestCase;
 import kafka.admin.TopicCommand;
 import kafka.server.KafkaConfig;
 import kafka.server.KafkaServerStartable;
 import kafka.utils.ZkUtils;
 
-/**
- * Unit test for simple App.
- */
-public abstract class BaseKafkaTest extends TestCase {
-    /**
-     * Create the test case
-     * 
-     * @param testName
-     *            name of the test case
-     */
-    public BaseKafkaTest(String testName) {
-        super(testName);
-    }
+public class QndEmbeddedServer {
 
-    private final static Logger LOGGER = LoggerFactory.getLogger(BaseKafkaTest.class);
+    private final static Logger LOGGER = LoggerFactory.getLogger(QndEmbeddedServer.class);
 
     private static ServerCnxnFactory startZkServer(int zkPort) {
         File snapshotDir;
@@ -99,7 +83,7 @@ public abstract class BaseKafkaTest extends TestCase {
         return kafkaClient;
     }
 
-    private static void createTopic(String topicName, int numPartitions, int zkPort) {
+    public static void createTopic(String topicName, int numPartitions, int zkPort) {
         // setup
         String[] arguments = new String[9];
         arguments[0] = "--create";
@@ -118,53 +102,43 @@ public abstract class BaseKafkaTest extends TestCase {
         TopicCommand.createTopic(zkUtils, opts);
     }
 
-    private final static int ZK_PORT = 12181;
-    private final static int KAFKA_PORT = 19092;
+    public static void main(String[] args) throws Exception {
+        final int ZK_PORT = 12181;
+        final int KAFKA_PORT = 19092;
 
-    protected KafkaClient kafkaClient;
-    protected ServerCnxnFactory zkFactory;
-    protected KafkaServerStartable kafkaBroker;
-
-    protected void createTopic(String topicName) throws Exception {
-        createTopic(topicName, 1, ZK_PORT);
-    }
-
-    protected void createTopic(String topicName, int numPartitions) throws Exception {
-        createTopic(topicName, numPartitions, ZK_PORT);
-    }
-
-    protected void warnup(String topic, String groupId) throws Exception {
-        kafkaClient.sendMessage(ProducerType.SYNC_ALL_ACKS, new KafkaMessage(topic, "warnup"))
-                .get();
-        KafkaMessage msg = kafkaClient.consumeMessage(groupId, true, topic, 1000,
-                TimeUnit.MILLISECONDS);
-        while (msg == null) {
-            msg = kafkaClient.consumeMessage(groupId, true, topic, 1000, TimeUnit.MILLISECONDS);
-        }
-    }
-
-    @Before
-    public void setUp() throws Exception {
-        zkFactory = startZkServer(ZK_PORT);
-        kafkaBroker = startKafkaServer(KAFKA_PORT, ZK_PORT);
-        kafkaClient = createKafkaClient(KAFKA_PORT);
-    }
-
-    @After
-    public void tearDown() throws IOException {
+        ServerCnxnFactory zkFactory = startZkServer(ZK_PORT);
         try {
-            kafkaClient.destroy();
-        } catch (Exception e) {
-        }
+            KafkaServerStartable kafkaBroker = startKafkaServer(KAFKA_PORT, ZK_PORT);
+            try {
+                createTopic("demo", 1, ZK_PORT);
 
-        try {
-            kafkaBroker.shutdown();
-        } catch (Exception e) {
-        }
+                KafkaClient kafkaClient = createKafkaClient(KAFKA_PORT);
+                try {
+                    KafkaMessage msg = new KafkaMessage("demo", "Message content");
+                    msg = kafkaClient.sendMessage(msg).get();
+                    System.out.println("Sent message: " + msg);
 
-        try {
+                    Thread.sleep(30000);
+
+                    kafkaClient.seekToBeginning("mygroupid", "demo");
+
+                    msg = kafkaClient.consumeMessage("mygroupid", true, "demo");
+                    System.out.println("Consumed message: " + msg);
+
+                    msg = kafkaClient.consumeMessage("mygroupid", true, "demo");
+                    System.out.println("Consumed message: " + msg);
+
+                    msg = kafkaClient.consumeMessage("mygroupid", true, "demo");
+                    System.out.println("Consumed message: " + msg);
+                } finally {
+                    kafkaClient.destroy();
+                }
+            } finally {
+                kafkaBroker.shutdown();
+                Metrics.defaultRegistry().shutdown();
+            }
+        } finally {
             zkFactory.shutdown();
-        } catch (Exception e) {
         }
     }
 

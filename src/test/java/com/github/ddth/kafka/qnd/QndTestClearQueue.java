@@ -6,13 +6,14 @@ import com.github.ddth.kafka.KafkaClient;
 import com.github.ddth.kafka.KafkaMessage;
 
 /*
- * mvn package exec:java -Dexec.classpathScope=test -Dexec.mainClass="com.github.ddth.kafka.qnd.QndTestClearQueue" -Dzookeeper=localhost:2181/kafka -Dtopic=topic -Dgroup=group-id-1
+ * mvn package exec:java -Dexec.classpathScope=test -Dexec.mainClass="com.github.ddth.kafka.qnd.QndTestClearQueue" -Dbrokers=localhost:9092 -Dtopic=topic -Dgroup=group-id-1
  */
 public class QndTestClearQueue {
 
     private static void emptyQueue(KafkaClient kafkaClient, String topic, String consumerGroupId)
             throws InterruptedException {
-        System.out.println("Emptying queue...[" + topic + " / " + consumerGroupId + "]");
+        System.out.print("Emptying queue...[" + topic + " / " + consumerGroupId + "]...");
+        long t1 = System.currentTimeMillis();
         long counter = 0;
         KafkaMessage kmsg = kafkaClient.consumeMessage(consumerGroupId, true, topic, 1000,
                 TimeUnit.MILLISECONDS);
@@ -21,7 +22,8 @@ public class QndTestClearQueue {
             kmsg = kafkaClient.consumeMessage(consumerGroupId, true, topic, 1000,
                     TimeUnit.MILLISECONDS);
         }
-        System.out.println("Emptying queue..." + counter);
+        System.out.println(
+                "Emptying queue..." + counter + " in " + (System.currentTimeMillis() - t1) + "ms.");
     }
 
     /**
@@ -31,15 +33,15 @@ public class QndTestClearQueue {
      * @throws Exception
      */
     public static void main(String[] args) throws Exception {
-        String zkConnString = System.getProperty("zookeeper", "localhost:2181/kafka");
-        String topic = System.getProperty("topic", "t4partition");
-        String consumerGroupId = System.getProperty("group", "group-id-1");
+        String brokers = System.getProperty("brokers", "localhost:9092");
+        String topic = System.getProperty("topic", "demo");
+        String consumerGroupId = System.getProperty("group", "mygroupid");
 
-        System.out.println("Zookeeper: " + zkConnString);
+        System.out.println("Brokers  : " + brokers);
         System.out.println("Topic    : " + topic);
         System.out.println("Group    : " + consumerGroupId);
 
-        final KafkaClient kafkaClient = new KafkaClient(zkConnString);
+        final KafkaClient kafkaClient = new KafkaClient(brokers);
         try {
             kafkaClient.init();
             emptyQueue(kafkaClient, topic, consumerGroupId);
@@ -47,7 +49,7 @@ public class QndTestClearQueue {
             kafkaClient.destroy();
         }
 
-        Thread.sleep(4000);
+        Thread.sleep(1000);
     }
 
 }

@@ -9,7 +9,7 @@ public class QndProducerExample {
 
     public static void main(String[] args) throws Exception {
         final String bootstrapServers = "localhost:9092";
-        final String topic = "demo";
+        final String topic = "demo1";
 
         try (KafkaClient kafkaClient = new KafkaClient(bootstrapServers)) {
             kafkaClient.init();

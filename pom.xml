@@ -1,11 +1,12 @@
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
 
 	<modelVersion>4.0.0</modelVersion>
 
 	<parent>
 		<groupId>com.github.ddth</groupId>
 		<artifactId>ddth-parent</artifactId>
-		<version>2</version>
+		<version>6</version>
 	</parent>
 
 	<!-- <groupId>com.github.ddth</groupId> -->
@@ -17,10 +18,20 @@
 	<description>DDTH's Kafka Libraries and Utilities</description>
 	<url>https://github.com/DDTH/ddth-kafka</url>
 
-	<!-- <licenses> <license> <name>The MIT License (MIT)</name> <url>http://opensource.org/licenses/MIT</url> 
-		<distribution>repo</distribution> </license> </licenses> <developers> <developer> 
-		<id>btnguyen2k</id> <name>Thanh Ba Nguyen</name> <email>btnguyen2k@gmail.com</email> 
-		</developer> </developers> -->
+	<licenses>
+		<license>
+			<name>The MIT License (MIT)</name>
+			<url>http://opensource.org/licenses/MIT</url>
+			<distribution>repo</distribution>
+		</license>
+	</licenses>
+	<developers>
+		<developer>
+			<id>btnguyen2k</id>
+			<name>Thanh Ba Nguyen</name>
+			<email>btnguyen2k@gmail.com</email>
+		</developer>
+	</developers>
 
 	<scm>
 		<url>git@github.com:DDTH/ddth-kafka</url>
@@ -30,15 +41,22 @@
 
 	<properties>
 		<skipTests>true</skipTests>
-		<version.kafka>0.9.0.1</version.kafka>
-		<version.curator>2.8.0</version.curator>
+		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 	</properties>
+
+	<repositories>
+		<repository>
+			<id>sonatype-org</id>
+			<name>Sonatype Releases</name>
+			<url>http://oss.sonatype.org/content/repositories/releases/</url>
+		</repository>
+	</repositories>
 
 	<dependencies>
 		<dependency>
 			<groupId>junit</groupId>
 			<artifactId>junit</artifactId>
-			<version>${version.junit}</version>
+			<version>4.12</version>
 			<scope>test</scope>
 			<exclusions>
 				<exclusion>
@@ -47,85 +65,35 @@
 				</exclusion>
 			</exclusions>
 		</dependency>
+
 		<dependency>
-			<groupId>org.apache.curator</groupId>
-			<artifactId>curator-test</artifactId>
-			<version>2.4.1</version>
+			<groupId>org.apache.zookeeper</groupId>
+			<artifactId>zookeeper</artifactId>
+			<version>3.4.9</version>
 			<scope>test</scope>
-			<exclusions>
-				<exclusion>
-					<groupId>org.slf4j</groupId>
-					<artifactId>slf4j-simple</artifactId>
-				</exclusion>
-			</exclusions>
 		</dependency>
 		<dependency>
 			<groupId>org.apache.kafka</groupId>
-			<artifactId>kafka_2.10</artifactId>
-			<version>0.8.2.2</version>
+			<artifactId>kafka_2.11</artifactId>
+			<version>0.10.1.1</version>
 			<scope>test</scope>
-			<classifier>test</classifier>
-			<exclusions>
-				<exclusion>
-					<groupId>com.sun.jdmk</groupId>
-					<artifactId>jmxtools</artifactId>
-				</exclusion>
-				<exclusion>
-					<groupId>com.sun.jmx</groupId>
-					<artifactId>jmxri</artifactId>
-				</exclusion>
-				<exclusion>
-					<groupId>javax.jms</groupId>
-					<artifactId>jms</artifactId>
-				</exclusion>
-				<exclusion>
-					<groupId>org.slf4j</groupId>
-					<artifactId>slf4j-simple</artifactId>
-				</exclusion>
-			</exclusions>
-		</dependency>
-		<dependency>
-			<groupId>org.apache.kafka</groupId>
-			<artifactId>kafka_2.10</artifactId>
-			<version>0.8.2.2</version>
-			<scope>test</scope>
-			<exclusions>
-				<exclusion>
-					<groupId>com.sun.jdmk</groupId>
-					<artifactId>jmxtools</artifactId>
-				</exclusion>
-				<exclusion>
-					<groupId>com.sun.jmx</groupId>
-					<artifactId>jmxri</artifactId>
-				</exclusion>
-				<exclusion>
-					<groupId>javax.jms</groupId>
-					<artifactId>jms</artifactId>
-				</exclusion>
-				<exclusion>
-					<groupId>org.slf4j</groupId>
-					<artifactId>slf4j-simple</artifactId>
-				</exclusion>
-			</exclusions>
 		</dependency>
 
 		<dependency>
 			<groupId>org.apache.kafka</groupId>
 			<artifactId>kafka-clients</artifactId>
-			<version>${version.kafka}</version>
+			<version>0.10.1.1</version>
 		</dependency>
-
-		<!-- <dependency> <groupId>org.apache.commons</groupId> <artifactId>commons-lang3</artifactId> 
-			<version>3.4</version> </dependency> <dependency> <groupId>org.apache.commons</groupId> 
-			<artifactId>commons-pool2</artifactId> <version>2.4.2</version> </dependency> -->
-
 		<dependency>
 			<groupId>com.github.ddth</groupId>
 			<artifactId>ddth-commons-core</artifactId>
-			<version>0.4.0</version>
-		</dependency> <!--<dependency> <groupId>com.github.ddth</groupId> <artifactId>ddth-commons-serialization</artifactId> 
-			<version>0.4.0</version> <type>pom</type> </dependency> <dependency> <groupId>com.github.ddth</groupId> 
-			<artifactId>ddth-zookeeper</artifactId> <version>0.4.1.2</version> </dependency> -->
+			<version>0.6.0.2</version>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.commons</groupId>
+			<artifactId>commons-lang3</artifactId>
+			<version>3.5</version>
+		</dependency>
 	</dependencies>
 
 	<build>
@@ -142,7 +110,9 @@
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-surefire-plugin</artifactId>
 				<configuration>
-					<forkMode>always</forkMode>
+					<forkCount>1</forkCount>
+					<reuseForks>false</reuseForks>
+					<!-- <forkMode>always</forkMode> -->
 					<skipTests>${skipTests}</skipTests>
 					<systemPropertyVariables>
 						<log4j.configuration>file:${basedir}/etc/log4j.xml</log4j.configuration>

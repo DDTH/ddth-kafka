@@ -1,7 +1,7 @@
 package com.github.ddth.kafka.internal;
 
 import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.Properties;
 import java.util.Set;
@@ -30,27 +30,40 @@ public class KafkaHelper {
     /**
      * Seeks the consumer's cursor to the beginning of a topic.
      * 
+     * <p>
+     * This method set cursors of all topic's partitions to the beginning, even
+     * if the partition is not currently assigned to the consumer.
+     * </p>
+     * 
      * @param consumer
      * @param topic
      */
     public static void seekToBeginning(final KafkaConsumer<?, ?> consumer, final String topic) {
         synchronized (consumer) {
+            // first, save the current subscription
             Set<String> subscription = consumer.subscription();
             try {
+                // second, unsubscribe and re-subscribe to all partitions.
                 consumer.unsubscribe();
                 List<PartitionInfo> partInfo = consumer.partitionsFor(topic);
+                Collection<TopicPartition> tpList = new ArrayList<>();
                 for (PartitionInfo p : partInfo) {
                     TopicPartition tp = new TopicPartition(topic, p.partition());
-                    consumer.assign(Arrays.asList(tp));
-                    consumer.seekToBeginning(tp);
-                    consumer.position(tp);
-                    consumer.commitSync();
+                    tpList.add(tp);
                 }
+                consumer.assign(tpList);
+                consumer.seekToBeginning(tpList);
+                // we want to seek as soon as possible
+                for (TopicPartition tp : tpList) {
+                    // since seekToBeginning evaluates lazily, invoke position()
+                    // so that seeking will be committed.
+                    consumer.position(tp);
+                }
+                consumer.commitSync();
             } finally {
+                // finally, restore subscription
                 consumer.unsubscribe();
-                List<String> topics = new ArrayList<String>();
-                topics.addAll(subscription);
-                consumer.subscribe(topics);
+                consumer.subscribe(subscription);
             }
         }
     }
@@ -58,27 +71,40 @@ public class KafkaHelper {
     /**
      * Seeks the consumer's cursor to the end of a topic.
      * 
+     * <p>
+     * This method set cursors of all topic's partitions to the end, even if the
+     * partition is not currently assigned to the consumer.
+     * </p>
+     * 
      * @param consumer
      * @param topic
      */
     public static void seekToEnd(final KafkaConsumer<?, ?> consumer, final String topic) {
         synchronized (consumer) {
+            // first, save the current subscription
             Set<String> subscription = consumer.subscription();
             try {
+                // second, unsubscribe and re-subscribe to all partitions.
                 consumer.unsubscribe();
                 List<PartitionInfo> partInfo = consumer.partitionsFor(topic);
+                Collection<TopicPartition> tpList = new ArrayList<>();
                 for (PartitionInfo p : partInfo) {
                     TopicPartition tp = new TopicPartition(topic, p.partition());
-                    consumer.assign(Arrays.asList(tp));
-                    consumer.seekToEnd(tp);
-                    consumer.position(tp);
-                    consumer.commitSync();
+                    tpList.add(tp);
                 }
+                consumer.assign(tpList);
+                consumer.seekToEnd(tpList);
+                // we want to seek as soon as possible
+                for (TopicPartition tp : tpList) {
+                    // since seekToEnd evaluates lazily, invoke position() so
+                    // that seeking will be committed.
+                    consumer.position(tp);
+                }
+                consumer.commitSync();
             } finally {
+                // finally, restore subscription
                 consumer.unsubscribe();
-                List<String> topics = new ArrayList<String>();
-                topics.addAll(subscription);
-                consumer.subscribe(topics);
+                consumer.subscribe(subscription);
             }
         }
     }
