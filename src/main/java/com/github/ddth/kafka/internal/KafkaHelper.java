@@ -1,9 +1,6 @@
 package com.github.ddth.kafka.internal;
 
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
-import java.util.List;
 import java.util.Properties;
 import java.util.Set;
 
@@ -12,7 +9,6 @@ import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerConfig;
-import org.apache.kafka.common.PartitionInfo;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.serialization.ByteArrayDeserializer;
 import org.apache.kafka.common.serialization.ByteArraySerializer;
@@ -20,6 +16,7 @@ import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
 
 import com.github.ddth.kafka.KafkaClient.ProducerType;
+import com.github.ddth.kafka.KafkaTopicPartitionOffset;
 
 /**
  * Helper utility class.
@@ -30,58 +27,87 @@ import com.github.ddth.kafka.KafkaClient.ProducerType;
 public class KafkaHelper {
 
     /**
+     * Seeks to a specified offset.
+     * 
+     * @param consumer
+     * @param tpo
+     * @return {@code true} if the consumer has subscribed to the specified
+     *         topic/partition, {@code false} otherwise.
+     * @since 1.3.2
+     */
+    public static boolean seek(KafkaConsumer<?, ?> consumer, KafkaTopicPartitionOffset tpo) {
+        synchronized (consumer) {
+            Set<TopicPartition> topicParts = consumer.assignment();
+            if (topicParts != null) {
+                for (TopicPartition tp : topicParts) {
+                    if (StringUtils.equals(tpo.topic, tp.topic())
+                            && tpo.partition == tp.partition()) {
+                        consumer.seek(tp, tpo.offset);
+                        // we want to seek as soon as possible
+                        // since seekToEnd evaluates lazily, invoke position()
+                        // so
+                        // that seeking will be committed.
+                        consumer.position(tp);
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
      * Seeks the consumer's cursor to the beginning of a topic.
      * 
      * <p>
-     * This method set cursors of all topic's partitions to the beginning, even
-     * if the partition is not currently assigned to the consumer.
+     * This method only set cursors of topic's partitions that are assigned to
+     * the consumer!
      * </p>
      * 
      * @param consumer
      * @param topic
+     * @return {@code true} if the consumer has subscribed to the specified
+     *         topic, {@code false} otherwise.
      */
-    public static void seekToBeginning(final KafkaConsumer<?, ?> consumer, final String topic) {
+    public static boolean seekToBeginning(KafkaConsumer<?, ?> consumer, String topic) {
+        boolean result = false;
         synchronized (consumer) {
-            // first, save the current subscription
-            Set<String> subscription = consumer.subscription();
-            try {
-                // second, unsubscribe and re-subscribe to all partitions.
-                consumer.unsubscribe();
-                List<PartitionInfo> partInfo = consumer.partitionsFor(topic);
-                Collection<TopicPartition> tpList = new ArrayList<>();
-                for (PartitionInfo p : partInfo) {
-                    TopicPartition tp = new TopicPartition(topic, p.partition());
-                    tpList.add(tp);
+            Set<TopicPartition> topicParts = consumer.assignment();
+            if (topicParts != null) {
+                for (TopicPartition tp : topicParts) {
+                    if (StringUtils.equals(topic, tp.topic())) {
+                        consumer.seekToBeginning(Arrays.asList(tp));
+                        // we want to seek as soon as possible
+                        // since seekToEnd evaluates lazily, invoke position()
+                        // so
+                        // that seeking will be committed.
+                        consumer.position(tp);
+                        result = true;
+                    }
                 }
-                consumer.assign(tpList);
-                consumer.seekToBeginning(tpList);
-                // we want to seek as soon as possible
-                for (TopicPartition tp : tpList) {
-                    // since seekToBeginning evaluates lazily, invoke position()
-                    // so that seeking will be committed.
-                    consumer.position(tp);
+                if (result) {
+                    consumer.commitSync();
                 }
-                consumer.commitSync();
-            } finally {
-                // finally, restore subscription
-                consumer.unsubscribe();
-                consumer.subscribe(subscription);
             }
         }
+        return result;
     }
 
     /**
      * Seeks the consumer's cursor to the end of a topic.
      * 
      * <p>
-     * This method set cursors of all topic's partitions to the end, even if the
-     * partition is not currently assigned to the consumer.
+     * This method only set cursors of topic's partitions that are assigned to
+     * the consumer!
      * </p>
      * 
      * @param consumer
      * @param topic
+     * @return {@code true} if the consumer has subscribed to the specified
+     *         topic, {@code false} otherwise.
      */
-    public static void seekToEnd(final KafkaConsumer<?, ?> consumer, final String topic) {
+    public static boolean seekToEnd(KafkaConsumer<?, ?> consumer, String topic) {
+        boolean result = false;
         synchronized (consumer) {
             Set<TopicPartition> topicParts = consumer.assignment();
             if (topicParts != null) {
@@ -93,37 +119,15 @@ public class KafkaHelper {
                         // so
                         // that seeking will be committed.
                         consumer.position(tp);
+                        result = true;
                     }
                 }
-                consumer.commitSync();
+                if (result) {
+                    consumer.commitSync();
+                }
             }
-
-            // // first, save the current subscription
-            // Set<String> subscription = consumer.subscription();
-            // try {
-            // // second, unsubscribe and re-subscribe to all partitions.
-            // consumer.unsubscribe();
-            // List<PartitionInfo> partInfo = consumer.partitionsFor(topic);
-            // Collection<TopicPartition> tpList = new ArrayList<>();
-            // for (PartitionInfo p : partInfo) {
-            // TopicPartition tp = new TopicPartition(topic, p.partition());
-            // tpList.add(tp);
-            // }
-            // consumer.assign(tpList);
-            // consumer.seekToEnd(tpList);
-            // // we want to seek as soon as possible
-            // for (TopicPartition tp : tpList) {
-            // // since seekToEnd evaluates lazily, invoke position() so
-            // // that seeking will be committed.
-            // consumer.position(tp);
-            // }
-            // consumer.commitSync();
-            // } finally {
-            // // finally, restore subscription
-            // consumer.unsubscribe();
-            // consumer.subscribe(subscription);
-            // }
         }
+        return result;
     }
 
     /**
@@ -134,8 +138,8 @@ public class KafkaHelper {
      * @param bootstrapServers
      * @return
      */
-    public static KafkaProducer<String, byte[]> createKafkaProducer(final ProducerType type,
-            final String bootstrapServers) {
+    public static KafkaProducer<String, byte[]> createKafkaProducer(ProducerType type,
+            String bootstrapServers) {
         return createKafkaProducer(type, bootstrapServers, null);
     }
 
@@ -154,8 +158,42 @@ public class KafkaHelper {
      * @return
      * @since 1.2.1
      */
-    public static KafkaProducer<String, byte[]> createKafkaProducer(final ProducerType type,
-            final String bootstrapServers, Properties customProps) {
+    public static KafkaProducer<String, byte[]> createKafkaProducer(ProducerType type,
+            String bootstrapServers, Properties customProps) {
+        Properties props = buildKafkaProducerProps(type, bootstrapServers, customProps);
+        KafkaProducer<String, byte[]> producer = new KafkaProducer<>(props);
+        return producer;
+    }
+
+    /**
+     * Builds default producer's properties.
+     * 
+     * @param type
+     * @param bootstrapServers
+     * @return
+     * @since 1.3.2
+     */
+    public static Properties buildKafkaProducerProps(ProducerType type, String bootstrapServers) {
+        return buildKafkaProducerProps(type, bootstrapServers, null);
+    }
+
+    /**
+     * Builds default consumer's properties, and applies custom configurations
+     * if any.
+     * 
+     * <p>
+     * Note: custom configuration properties will be populated <i>after</i> and
+     * <i>additional/overridden</i> to the default configuration.
+     * </p>
+     * 
+     * @param type
+     * @param bootstrapServers
+     * @param customProps
+     * @return
+     * @since 1.3.2
+     */
+    public static Properties buildKafkaProducerProps(ProducerType type, String bootstrapServers,
+            Properties customProps) {
         Properties props = new Properties();
         props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
         props.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getName());
@@ -214,7 +252,7 @@ public class KafkaHelper {
             props.putAll(customProps);
         }
 
-        return new KafkaProducer<String, byte[]>(props);
+        return props;
     }
 
     /**
@@ -224,15 +262,15 @@ public class KafkaHelper {
      * @param bootstrapServers
      * @param consumerGroupId
      * @param consumeFromBeginning
-     * @param autoCommitOffset
+     * @param autoCommitOffsets
      * @param leaderAutoRebalance
      * @return
      */
-    public static KafkaConsumer<String, byte[]> createKafkaConsumer(final String bootstrapServers,
-            final String consumerGroupId, final boolean consumeFromBeginning,
-            boolean autoCommitOffset, boolean leaderAutoRebalance) {
+    public static KafkaConsumer<String, byte[]> createKafkaConsumer(String bootstrapServers,
+            String consumerGroupId, boolean consumeFromBeginning, boolean autoCommitOffsets,
+            boolean leaderAutoRebalance) {
         return createKafkaConsumer(bootstrapServers, consumerGroupId, consumeFromBeginning,
-                autoCommitOffset, leaderAutoRebalance, null);
+                autoCommitOffsets, leaderAutoRebalance, null);
     }
 
     /**
@@ -247,17 +285,17 @@ public class KafkaHelper {
      * @param bootstrapServers
      * @param consumerGroupId
      * @param consumeFromBeginning
-     * @param autoCommitOffset
+     * @param autoCommitOffsets
      * @param leaderAutoRebalance
      * @param customProps
      * @return
      * @since 1.2.1
      */
-    public static KafkaConsumer<String, byte[]> createKafkaConsumer(final String bootstrapServers,
-            final String consumerGroupId, final boolean consumeFromBeginning,
-            boolean autoCommitOffset, boolean leaderAutoRebalance, Properties customProps) {
-        Properties props = KafkaHelper.buildKafkaConsumerProps(bootstrapServers, consumerGroupId,
-                consumeFromBeginning, autoCommitOffset, leaderAutoRebalance, customProps);
+    public static KafkaConsumer<String, byte[]> createKafkaConsumer(String bootstrapServers,
+            String consumerGroupId, boolean consumeFromBeginning, boolean autoCommitOffsets,
+            boolean leaderAutoRebalance, Properties customProps) {
+        Properties props = buildKafkaConsumerProps(bootstrapServers, consumerGroupId,
+                consumeFromBeginning, autoCommitOffsets, leaderAutoRebalance, customProps);
         KafkaConsumer<String, byte[]> consumer = new KafkaConsumer<String, byte[]>(props);
         return consumer;
     }
@@ -268,15 +306,15 @@ public class KafkaHelper {
      * @param bootstrapServers
      * @param consumerGroupId
      * @param consumeFromBeginning
-     * @param autoCommitOffset
+     * @param autoCommitOffsets
      * @param leaderAutoRebalance
      * @return
      */
-    public static Properties buildKafkaConsumerProps(final String bootstrapServers,
-            final String consumerGroupId, final boolean consumeFromBeginning,
-            final boolean autoCommitOffset, final boolean leaderAutoRebalance) {
+    public static Properties buildKafkaConsumerProps(String bootstrapServers,
+            String consumerGroupId, boolean consumeFromBeginning, boolean autoCommitOffsets,
+            boolean leaderAutoRebalance) {
         return buildKafkaConsumerProps(bootstrapServers, consumerGroupId, consumeFromBeginning,
-                autoCommitOffset, leaderAutoRebalance, null);
+                autoCommitOffsets, leaderAutoRebalance, null);
     }
 
     /**
@@ -291,16 +329,15 @@ public class KafkaHelper {
      * @param bootstrapServers
      * @param consumerGroupId
      * @param consumeFromBeginning
-     * @param autoCommitOffset
+     * @param autoCommitOffsets
      * @param leaderAutoRebalance
      * @param customProps
      * @since 1.2.1
      * @return
      */
-    public static Properties buildKafkaConsumerProps(final String bootstrapServers,
-            final String consumerGroupId, final boolean consumeFromBeginning,
-            final boolean autoCommitOffset, final boolean leaderAutoRebalance,
-            final Properties customProps) {
+    public static Properties buildKafkaConsumerProps(String bootstrapServers,
+            String consumerGroupId, boolean consumeFromBeginning, boolean autoCommitOffsets,
+            boolean leaderAutoRebalance, Properties customProps) {
         Properties props = new Properties();
         props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
         props.put(ConsumerConfig.GROUP_ID_CONFIG, consumerGroupId);
@@ -314,7 +351,7 @@ public class KafkaHelper {
         props.put(ConsumerConfig.MAX_POLL_INTERVAL_MS_CONFIG, String.valueOf(60000));
         props.put(ConsumerConfig.REQUEST_TIMEOUT_MS_CONFIG, String.valueOf(61000));
 
-        if (autoCommitOffset) {
+        if (autoCommitOffsets) {
             props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, true);
             props.put(ConsumerConfig.AUTO_COMMIT_INTERVAL_MS_CONFIG, String.valueOf(1000));
         } else {

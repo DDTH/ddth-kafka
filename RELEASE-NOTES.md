@@ -1,6 +1,16 @@
 ddth-kafka release notes
 ========================
 
+1.3.2 - 2017-02-09
+------------------
+
+- Bug fixed: `KafkaConsumer is not safe for multi-threaded access`.
+- `KafkaClient`'s new methods:
+  - `commit(...)`: commit offsets.
+  - `commitAsync(...)`: commit offsets asynchronously.
+  - `seek(...)`: seek to a specific offset.
+
+
 1.3.1.1 - 2017-02-08
 --------------------
 

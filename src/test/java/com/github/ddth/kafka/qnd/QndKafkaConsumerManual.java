@@ -8,8 +8,8 @@ import com.github.ddth.kafka.KafkaMessage;
 public class QndKafkaConsumerManual {
 
     private final static String brokers = "localhost:9092";
-    private final static String consumerGroupId = "mygroupid";
-    private final static String topic = "demo";
+    private final static String consumerGroupId = "ddth-kafka";
+    private final static String topic = "ddth-kafka";
 
     public void qndAsyncProducer() throws Exception {
         System.out.println("========== QND: Async Producer ==========");

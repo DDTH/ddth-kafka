@@ -2,17 +2,19 @@ package com.github.ddth.kafka.internal;
 
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.github.ddth.kafka.IKafkaMessageListener;
 import com.github.ddth.kafka.KafkaMessage;
 
 public class KafkaMsgConsumerWorker extends Thread {
 
-    // private Logger LOGGER =
-    // LoggerFactory.getLogger(KafkaMsgConsumerWorker.class);
+    private final Logger LOGGER = LoggerFactory.getLogger(KafkaMsgConsumerWorker.class);
 
     private KafkaMsgConsumer consumer;
     private Collection<IKafkaMessageListener> messageListerners;
@@ -38,7 +40,8 @@ public class KafkaMsgConsumerWorker extends Thread {
     }
 
     private void deliverMessage(KafkaMessage msg, Collection<IKafkaMessageListener> msgListeners) {
-        AtomicInteger counter = new AtomicInteger(msgListeners.size());
+        CountDownLatch counter = new CountDownLatch(msgListeners.size());
+        // AtomicInteger counter = new AtomicInteger(msgListeners.size());
         for (final IKafkaMessageListener listerner : msgListeners) {
             executorService.submit(new Runnable() {
                 @Override
@@ -46,39 +49,19 @@ public class KafkaMsgConsumerWorker extends Thread {
                     try {
                         listerner.onMessage(msg);
                     } finally {
-                        counter.decrementAndGet();
+                        // counter.decrementAndGet();
+                        counter.countDown();
                     }
                 }
             });
         }
-        while (counter.get() > 0)
-            ;
-
-        // if (true)
-        // return;
-        // final CountDownLatch countDownLatch = new
-        // CountDownLatch(msgListeners.size());
-        // for (final IKafkaMessageListener listerner : msgListeners) {
-        // // Delivery the consumed message to n-listeners
-        // // asynchronously
-        // Thread t = new Thread("Kafka-Consumer-Delivery") {
-        // public void run() {
-        // try {
-        // listerner.onMessage(msg);
-        // } catch (Exception e) {
-        // LOGGER.warn(e.getMessage(), e);
-        // } finally {
-        // countDownLatch.countDown();
-        // }
-        // }
-        // };
-        // t.start();
-        // try {
-        // countDownLatch.await();
-        // } catch (InterruptedException e) {
-        // LOGGER.warn(e.getMessage(), e);
-        // }
-        // }
+        // while (counter.get() > 0)
+        // ;
+        try {
+            counter.await();
+        } catch (InterruptedException e) {
+            LOGGER.warn(e.getMessage(), e);
+        }
     }
 
     @Override

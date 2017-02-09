@@ -1,17 +1,17 @@
 package com.github.ddth.kafka.qnd;
 
 import java.text.MessageFormat;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
 import org.apache.kafka.clients.producer.Callback;
 import org.apache.kafka.clients.producer.RecordMetadata;
 
 import com.github.ddth.commons.utils.IdGenerator;
+import com.github.ddth.kafka.IKafkaMessageListener;
 import com.github.ddth.kafka.KafkaClient;
 import com.github.ddth.kafka.KafkaMessage;
 
-public class QndMultithreadAsyncProducerConsumer {
+public class QndMultithreadAsyncProducerConsumerListener {
 
     private final static IdGenerator idGen = IdGenerator.getInstance(0);
 
@@ -40,31 +40,7 @@ public class QndMultithreadAsyncProducerConsumer {
         return result;
     }
 
-    private static Thread[] createConsumerThreads(KafkaClient kafkaClient, String topic,
-            String groupId, AtomicLong counterReceived, AtomicBoolean signal, int numThreads) {
-        Thread[] result = new Thread[numThreads];
-        for (int i = 0; i < numThreads; i++) {
-            result[i] = new Thread("Consumer - " + i) {
-                public void run() {
-                    while (!signal.get()) {
-                        try {
-                            KafkaMessage msg = kafkaClient.consumeMessage(groupId, topic);
-                            if (msg != null) {
-                                counterReceived.incrementAndGet();
-                            }
-                        } catch (Exception e) {
-                            e.printStackTrace();
-                            break;
-                        }
-                    }
-                }
-            };
-        }
-        return result;
-    }
-
-    public static void flush(KafkaClient kafkaClient, String topic, String groupId)
-            throws InterruptedException {
+    public static void flush(KafkaClient kafkaClient, String topic, String groupId) {
         kafkaClient.seekToEnd(groupId, topic);
 
         int numMsgs = 0;
@@ -79,48 +55,50 @@ public class QndMultithreadAsyncProducerConsumer {
     }
 
     public static void run(KafkaClient kafkaClient, String topic, String groupId, int numMsgs,
-            int numProducers, int numConsumers) throws InterruptedException {
-        final AtomicBoolean SIGNAL = new AtomicBoolean(false);
+            int numProducers) throws InterruptedException {
         final AtomicLong COUNTER_SENT = new AtomicLong(0);
         final AtomicLong COUNTER_RECEIVED = new AtomicLong(0);
 
+        long t1 = System.currentTimeMillis();
         Thread[] producers = createProducerThreads(kafkaClient, topic, COUNTER_SENT, numProducers,
                 numMsgs / numProducers);
-        Thread[] consumers = createConsumerThreads(kafkaClient, topic, groupId, COUNTER_RECEIVED,
-                SIGNAL, numConsumers);
+        for (Thread th : producers) {
+            th.start();
+        }
 
-        long t1 = System.currentTimeMillis();
-        for (Thread t : producers) {
-            t.start();
-        }
-        for (Thread t : consumers) {
-            t.start();
-        }
+        long t = System.currentTimeMillis();
+        IKafkaMessageListener messageListener = new IKafkaMessageListener() {
+            @Override
+            public void onMessage(KafkaMessage message) {
+                if (message != null) {
+                    COUNTER_RECEIVED.incrementAndGet();
+                } else {
+                    System.out.println("Something wrong!");
+                    throw new IllegalStateException();
+                }
+            }
+        };
+        kafkaClient.addMessageListener(groupId, true, topic, messageListener);
         for (Thread th : producers) {
             th.join();
         }
-        long t2 = System.currentTimeMillis();
-        while (COUNTER_RECEIVED.get() < numMsgs && System.currentTimeMillis() - t1 < 60000) {
+        while (COUNTER_RECEIVED.get() < numMsgs && t - t1 < 60000) {
             Thread.sleep(1);
+            t = System.currentTimeMillis();
         }
-        SIGNAL.set(true);
-        for (Thread th : consumers) {
-            th.join();
-        }
-        long t3 = System.currentTimeMillis();
-        long d1 = t2 - t1;
-        long d2 = t3 - t2;
+        long d = t - t1;
 
-        System.out.println(MessageFormat.format("== TEST - {0}P{1}C", numProducers, numConsumers));
+        kafkaClient.removeMessageListener(groupId, topic, messageListener);
+
+        System.out.println(MessageFormat.format("== TEST - {0}P", numProducers));
         if (COUNTER_SENT.get() != COUNTER_RECEIVED.get()) {
             System.out.print("[F]");
         } else {
             System.out.print("[T]");
         }
         System.out.println("  Msgs: " + numMsgs + " - " + COUNTER_SENT.get() + " - "
-                + COUNTER_RECEIVED.get() + " / Duration Send: " + d1 + "ms - "
-                + String.format("%,.1f", numMsgs * 1000.0 / d1) + " msg/s" + " / Duration Receive: "
-                + d2 + "ms - " + String.format("%,.1f", numMsgs * 1000.0 / d2) + " msg/s");
+                + COUNTER_RECEIVED.get() + " / Duration: " + d + "ms - "
+                + String.format("%,.1f", numMsgs * 1000.0 / d) + " msg/s");
     }
 
     public static void main(String[] args) throws Exception {
@@ -132,25 +110,25 @@ public class QndMultithreadAsyncProducerConsumer {
         try (KafkaClient kafkaClient = new KafkaClient(BOOTSTRAP_SERVERS)) {
             kafkaClient.init();
             flush(kafkaClient, TOPIC, GROUP_ID);
-            run(kafkaClient, TOPIC, GROUP_ID, NUM_MSGS, 1, 1);
+            run(kafkaClient, TOPIC, GROUP_ID, NUM_MSGS, 1);
         }
 
         try (KafkaClient kafkaClient = new KafkaClient(BOOTSTRAP_SERVERS)) {
             kafkaClient.init();
             flush(kafkaClient, TOPIC, GROUP_ID);
-            run(kafkaClient, TOPIC, GROUP_ID, NUM_MSGS, 4, 1);
+            run(kafkaClient, TOPIC, GROUP_ID, NUM_MSGS, 2);
         }
 
         try (KafkaClient kafkaClient = new KafkaClient(BOOTSTRAP_SERVERS)) {
             kafkaClient.init();
             flush(kafkaClient, TOPIC, GROUP_ID);
-            run(kafkaClient, TOPIC, GROUP_ID, NUM_MSGS, 1, 4);
+            run(kafkaClient, TOPIC, GROUP_ID, NUM_MSGS, 4);
         }
 
         try (KafkaClient kafkaClient = new KafkaClient(BOOTSTRAP_SERVERS)) {
             kafkaClient.init();
             flush(kafkaClient, TOPIC, GROUP_ID);
-            run(kafkaClient, TOPIC, GROUP_ID, NUM_MSGS, 4, 4);
+            run(kafkaClient, TOPIC, GROUP_ID, NUM_MSGS, 8);
         }
     }
 

@@ -257,6 +257,7 @@ public class KafkaClient implements Closeable {
     /**
      * Destroying method.
      */
+    @SuppressWarnings("unused")
     public void destroy() {
         if (cacheProducers != null) {
             for (Entry<ProducerType, KafkaProducer<String, byte[]>> entry : cacheProducers
@@ -268,6 +269,7 @@ public class KafkaClient implements Closeable {
                     LOGGER.warn(e.getMessage(), e);
                 }
             }
+            cacheProducers.clear();
             cacheProducers = null;
         }
 
@@ -291,6 +293,7 @@ public class KafkaClient implements Closeable {
                 }
             }
             cacheConsumers.clear();
+            cacheConsumers = null;
         }
 
         // // to fix the error
@@ -302,7 +305,7 @@ public class KafkaClient implements Closeable {
 
         if (executorService != null && myOwnExecutorService) {
             try {
-                executorService.shutdownNow();
+                List<Runnable> tasks = executorService.shutdownNow();
             } catch (Exception e) {
                 LOGGER.warn(e.getMessage(), e);
             } finally {
@@ -409,27 +412,45 @@ public class KafkaClient implements Closeable {
     }
 
     /**
-     * Seeks to the beginning of all partitions of a topic.
+     * Seeks to a specified offset.
      * 
      * @param consumerGroupId
-     * @param topic
-     * @since 1.2.0
+     * @param tpo
+     * @return {@code true} if the consumer has subscribed to the specified
+     *         topic/partition, {@code false} otherwise.
+     * @since 1.3.2
      */
-    public void seekToBeginning(String consumerGroupId, String topic) {
+    public boolean seek(String consumerGroupId, KafkaTopicPartitionOffset tpo) {
         KafkaMsgConsumer consumer = getKafkaConsumer(consumerGroupId, false);
-        consumer.seekToBeginning(topic);
+        return consumer.seek(tpo);
     }
 
     /**
-     * Seeks to the end of all partitions of a topic.
+     * Seeks to the beginning of all assigned partitions of a topic.
      * 
      * @param consumerGroupId
      * @param topic
+     * @return {@code true} if the consumer has subscribed to the specified
+     *         topic, {@code false} otherwise.
      * @since 1.2.0
      */
-    public void seekToEnd(String consumerGroupId, String topic) {
+    public boolean seekToBeginning(String consumerGroupId, String topic) {
         KafkaMsgConsumer consumer = getKafkaConsumer(consumerGroupId, false);
-        consumer.seekToEnd(topic);
+        return consumer.seekToBeginning(topic);
+    }
+
+    /**
+     * Seeks to the end of all assigned partitions of a topic.
+     * 
+     * @param consumerGroupId
+     * @param topic
+     * @return {@code true} if the consumer has subscribed to the specified
+     *         topic, {@code false} otherwise.
+     * @since 1.2.0
+     */
+    public boolean seekToEnd(String consumerGroupId, String topic) {
+        KafkaMsgConsumer consumer = getKafkaConsumer(consumerGroupId, false);
+        return consumer.seekToEnd(topic);
     }
 
     /**
@@ -441,8 +462,7 @@ public class KafkaClient implements Closeable {
      * @since 1.2.0
      */
     public KafkaMessage consumeMessage(String consumerGroupId, String topic) {
-        KafkaMsgConsumer kafkaConsumer = getKafkaConsumer(consumerGroupId, true);
-        return kafkaConsumer.consume(topic);
+        return consumeMessage(consumerGroupId, true, topic);
     }
 
     /**
@@ -457,8 +477,7 @@ public class KafkaClient implements Closeable {
      */
     public KafkaMessage consumeMessage(String consumerGroupId, String topic, long waitTime,
             TimeUnit waitTimeUnit) {
-        KafkaMsgConsumer kafkaConsumer = getKafkaConsumer(consumerGroupId, true);
-        return kafkaConsumer.consume(topic, waitTime, waitTimeUnit);
+        return consumeMessage(consumerGroupId, true, topic, waitTime, waitTimeUnit);
     }
 
     /**
@@ -537,6 +556,92 @@ public class KafkaClient implements Closeable {
         return kafkaConsumer != null ? kafkaConsumer.removeMessageListener(topic, messageListener)
                 : false;
     }
+
+    /**
+     * Commit the specified offsets for the last consumed message.
+     * 
+     * @param msg
+     * @param groupId
+     * @return {@code true} if the topic is in subscription list, {@code false}
+     *         otherwise
+     * @since 1.3.2
+     */
+    public boolean commmit(KafkaMessage msg, String groupId) {
+        KafkaMsgConsumer kafkaConsumer = cacheConsumers.get(groupId);
+        return kafkaConsumer != null ? kafkaConsumer.commit(msg) : false;
+    }
+
+    /**
+     * Commit the specified offsets for the last consumed message.
+     * 
+     * @param msg
+     * @param groupId
+     * @return {@code true} if the topic is in subscription list, {@code false}
+     *         otherwise
+     * @since 1.3.2
+     */
+    public boolean commmitAsync(KafkaMessage msg, String groupId) {
+        KafkaMsgConsumer kafkaConsumer = cacheConsumers.get(groupId);
+        return kafkaConsumer != null ? kafkaConsumer.commitAsync(msg) : false;
+    }
+
+    /**
+     * Commit offsets returned on the last poll for all the subscribed
+     * partitions.
+     * 
+     * @param topic
+     * @param groupId
+     * @return
+     * @since 1.3.2
+     */
+    public boolean commit(String topic, String groupId) {
+        KafkaMsgConsumer kafkaConsumer = cacheConsumers.get(groupId);
+        return kafkaConsumer != null ? kafkaConsumer.commit(topic) : false;
+    }
+
+    /**
+     * Commit offsets returned on the last poll for all the subscribed
+     * partitions.
+     * 
+     * @param topic
+     * @param groupId
+     * @return
+     * @since 1.3.2
+     */
+    public boolean commitAsync(String topic, String groupId) {
+        KafkaMsgConsumer kafkaConsumer = cacheConsumers.get(groupId);
+        return kafkaConsumer != null ? kafkaConsumer.commitAsync(topic) : false;
+    }
+
+    /**
+     * Commit the specified offsets for the specified list of topics and
+     * partitions.
+     * 
+     * @param groupId
+     * @param tpoList
+     * @since 1.3.2
+     */
+    public void commit(String groupId, KafkaTopicPartitionOffset... tpoList) {
+        KafkaMsgConsumer kafkaConsumer = cacheConsumers.get(groupId);
+        if (kafkaConsumer != null) {
+            kafkaConsumer.commit(tpoList);
+        }
+    }
+
+    /**
+     * Commit the specified offsets for the specified list of topics and
+     * partitions.
+     * 
+     * @param groupId
+     * @param tpoList
+     * @since 1.3.2
+     */
+    public void commitAsync(String groupId, KafkaTopicPartitionOffset... tpoList) {
+        KafkaMsgConsumer kafkaConsumer = cacheConsumers.get(groupId);
+        if (kafkaConsumer != null) {
+            kafkaConsumer.commitAsync(tpoList);
+        }
+    }
     /*----------------------------------------------------------------------*/
 
     /*----------------------------------------------------------------------*/
@@ -575,8 +680,8 @@ public class KafkaClient implements Closeable {
     public KafkaMessage sendMessage(ProducerType type, KafkaMessage message) {
         String key = message.key();
         ProducerRecord<String, byte[]> record = StringUtils.isEmpty(key)
-                ? new ProducerRecord<String, byte[]>(message.topic(), message.content())
-                : new ProducerRecord<String, byte[]>(message.topic(), key, message.content());
+                ? new ProducerRecord<>(message.topic(), message.content())
+                : new ProducerRecord<>(message.topic(), key, message.content());
         KafkaProducer<String, byte[]> producer = getJavaProducer(type);
         try {
             RecordMetadata metadata = producer.send(record).get();
@@ -624,8 +729,8 @@ public class KafkaClient implements Closeable {
     public Future<KafkaMessage> sendMessageAsync(ProducerType type, KafkaMessage message) {
         String key = message.key();
         ProducerRecord<String, byte[]> record = StringUtils.isEmpty(key)
-                ? new ProducerRecord<String, byte[]>(message.topic(), message.content())
-                : new ProducerRecord<String, byte[]>(message.topic(), key, message.content());
+                ? new ProducerRecord<>(message.topic(), message.content())
+                : new ProducerRecord<>(message.topic(), key, message.content());
         KafkaProducer<String, byte[]> producer = getJavaProducer(type);
         Future<RecordMetadata> fRecordMetadata = producer.send(record);
         FutureTask<KafkaMessage> result = new FutureTask<>(new Callable<KafkaMessage>() {
@@ -713,8 +818,8 @@ public class KafkaClient implements Closeable {
             Callback callback) {
         String key = message.key();
         ProducerRecord<String, byte[]> record = StringUtils.isEmpty(key)
-                ? new ProducerRecord<String, byte[]>(message.topic(), message.content())
-                : new ProducerRecord<String, byte[]>(message.topic(), key, message.content());
+                ? new ProducerRecord<>(message.topic(), message.content())
+                : new ProducerRecord<>(message.topic(), key, message.content());
         KafkaProducer<String, byte[]> producer = getJavaProducer(type);
         return producer.send(record, callback);
     }

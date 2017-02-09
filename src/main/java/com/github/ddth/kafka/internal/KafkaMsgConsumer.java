@@ -3,8 +3,10 @@ package com.github.ddth.kafka.internal;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
@@ -15,16 +17,21 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
-import org.apache.kafka.clients.consumer.CommitFailedException;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
+import org.apache.kafka.clients.consumer.OffsetAndMetadata;
+import org.apache.kafka.clients.consumer.OffsetCommitCallback;
 import org.apache.kafka.common.PartitionInfo;
+import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.common.errors.WakeupException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.github.ddth.kafka.IKafkaMessageListener;
+import com.github.ddth.kafka.KafkaException;
 import com.github.ddth.kafka.KafkaMessage;
+import com.github.ddth.kafka.KafkaTopicPartitionOffset;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
 
@@ -232,6 +239,7 @@ public class KafkaMsgConsumer {
     /**
      * Destroying method.
      */
+    @SuppressWarnings("unused")
     public void destroy() {
         // stop all workers
         for (KafkaMsgConsumerWorker worker : topicWorkers.values()) {
@@ -244,22 +252,26 @@ public class KafkaMsgConsumer {
         topicWorkers.clear();
 
         // clear all message listeners
-        topicMsgListeners.clear();
+        synchronized (topicMsgListeners) {
+            topicMsgListeners.clear();
+        }
 
         // close all KafkaConsumer
         for (KafkaConsumer<String, byte[]> consumer : topicConsumers.values()) {
-            try {
-                consumer.commitSync();
-                consumer.close();
-            } catch (Exception e) {
-                LOGGER.warn(e.getMessage(), e);
+            synchronized (consumer) {
+                try {
+                    consumer.close();
+                } catch (WakeupException e) {
+                } catch (Exception e) {
+                    LOGGER.warn(e.getMessage(), e);
+                }
             }
         }
         topicConsumers.clear();
 
         if (executorService != null && myOwnExecutorService) {
             try {
-                executorService.shutdownNow();
+                List<Runnable> tasks = executorService.shutdownNow();
             } catch (Exception e) {
                 LOGGER.warn(e.getMessage(), e);
             } finally {
@@ -351,47 +363,93 @@ public class KafkaMsgConsumer {
     }
 
     /**
-     * Seeks to the beginning of all partitions of a topic.
+     * Seeks to a specified offset.
      * 
-     * @param topic
-     * @since 1.2.0
+     * @param tpo
+     * @return {@code true} if the consumer has subscribed to the specified
+     *         topic/partition, {@code false} otherwise.
+     * @since 1.3.2
      */
-    public void seekToBeginning(String topic) {
-        KafkaConsumer<?, ?> consumer = _getConsumer(topic, true, true);
-        KafkaHelper.seekToBeginning(consumer, topic);
+    public boolean seek(KafkaTopicPartitionOffset tpo) {
+        KafkaConsumer<String, byte[]> consumer = _getConsumer(tpo.topic);
+        return KafkaHelper.seek(consumer, tpo);
     }
 
     /**
-     * Seeks to the end of all partitions of a topic.
+     * Seeks to the beginning of all assigned partitions of a topic.
      * 
      * @param topic
+     * @return {@code true} if the consumer has subscribed to the specified
+     *         topic, {@code false} otherwise.
      * @since 1.2.0
      */
-    public void seekToEnd(String topic) {
-        KafkaConsumer<?, ?> consumer = _getConsumer(topic, true, true);
-        KafkaHelper.seekToEnd(consumer, topic);
+    public boolean seekToBeginning(String topic) {
+        KafkaConsumer<?, ?> consumer = _getConsumer(topic);
+        return KafkaHelper.seekToBeginning(consumer, topic);
+    }
+
+    /**
+     * Seeks to the end of all assigned partitions of a topic.
+     * 
+     * @param topic
+     * @return {@code true} if the consumer has subscribed to the specified
+     *         topic, {@code false} otherwise.
+     * @since 1.2.0
+     */
+    public boolean seekToEnd(String topic) {
+        KafkaConsumer<?, ?> consumer = _getConsumer(topic);
+        return KafkaHelper.seekToEnd(consumer, topic);
     }
 
     /**
      * Prepares a consumer to consume messages from a Kafka topic.
      * 
      * @param topic
-     * @param autoCommitOffset
+     * @return
+     * @since 1.3.2
+     */
+    private KafkaConsumer<String, byte[]> _getConsumer(String topic) {
+        return _getConsumer(topic, true, true);
+    }
+
+    /**
+     * Subscribes to a topic.
+     * 
+     * @param consumer
+     * @param topic
+     * @since 1.3.2
+     */
+    private void _checkAndSubscribe(KafkaConsumer<?, ?> consumer, String topic) {
+        synchronized (consumer) {
+            Set<String> subscription = consumer.subscription();
+            if (subscription == null || !subscription.contains(topic)) {
+                consumer.subscribe(Arrays.asList(topic));
+            }
+        }
+    }
+
+    /**
+     * Prepares a consumer to consume messages from a Kafka topic.
+     * 
+     * @param topic
+     * @param autoCommitOffsets
      * @param leaderAutoRebalance
      * @since 1.2.0
      */
-    private KafkaConsumer<String, byte[]> _getConsumer(String topic, boolean autoCommitOffset,
+    private KafkaConsumer<String, byte[]> _getConsumer(String topic, boolean autoCommitOffsets,
             boolean leaderAutoRebalance) {
         KafkaConsumer<String, byte[]> consumer = topicConsumers.get(topic);
         if (consumer == null) {
             consumer = KafkaHelper.createKafkaConsumer(bootstrapServers, consumerGroupId,
-                    consumeFromBeginning, autoCommitOffset, leaderAutoRebalance,
+                    consumeFromBeginning, autoCommitOffsets, leaderAutoRebalance,
                     consumerProperties);
             KafkaConsumer<String, byte[]> existingConsumer = topicConsumers.putIfAbsent(topic,
                     consumer);
             if (existingConsumer != null) {
                 consumer.close();
                 consumer = existingConsumer;
+            } else {
+                _checkAndSubscribe(consumer, topic);
             }
         }
         return consumer;
@@ -421,10 +479,10 @@ public class KafkaMsgConsumer {
      * Prepares a worker to consume messages from a Kafka topic.
      * 
      * @param topic
-     * @param autoCommitOffset
+     * @param autoCommitOffsets
      * @return
      */
-    private KafkaMsgConsumerWorker _getWorker(String topic, boolean autoCommitOffset) {
+    private KafkaMsgConsumerWorker _getWorker(String topic, boolean autoCommitOffsets) {
         KafkaMsgConsumerWorker worker = topicWorkers.get(topic);
         if (worker == null) {
             Collection<IKafkaMessageListener> msgListeners = topicMsgListeners.get(topic);
@@ -456,15 +514,15 @@ public class KafkaMsgConsumer {
      * 
      * @param topic
      * @param messageListener
-     * @param autoCommitOffset
+     * @param autoCommitOffsets
      * @return {@code true} if successful, {@code false} otherwise (the listener
      *         may have been added already)
      */
     public boolean addMessageListener(String topic, IKafkaMessageListener messageListener,
-            boolean autoCommitOffset) {
+            boolean autoCommitOffsets) {
         synchronized (topicMsgListeners) {
             if (topicMsgListeners.put(topic, messageListener)) {
-                _getWorker(topic, autoCommitOffset);
+                _getWorker(topic, autoCommitOffsets);
                 return true;
             }
         }
@@ -515,25 +573,13 @@ public class KafkaMsgConsumer {
      */
     private void _fetch(BlockingQueue<ConsumerRecord<String, byte[]>> buffer, String topic,
             long waitTime, TimeUnit waitTimeUnit) {
-        KafkaConsumer<String, byte[]> consumer = _getConsumer(topic, true, true);
+        KafkaConsumer<String, byte[]> consumer = _getConsumer(topic);
         synchronized (consumer) {
+            _checkAndSubscribe(consumer, topic);
             Set<String> subscription = consumer.subscription();
-            if (subscription == null || subscription.size() == 0) {
-                // this consumer has not subscribed to any topic yet
-                // if (topicExists(topic)) {
-                List<String> topics = Arrays.asList(topic);
-                consumer.subscribe(topics);
-                // }
-            }
-            try {
-                consumer.commitSync();
-            } catch (CommitFailedException e) {
-                LOGGER.warn(e.getMessage(), e);
-            }
-
-            subscription = consumer.subscription();
-            ConsumerRecords<String, byte[]> crList = subscription != null && subscription.size() > 0
-                    ? consumer.poll(waitTimeUnit.toMillis(waitTime)) : null;
+            ConsumerRecords<String, byte[]> crList = subscription != null
+                    && subscription.contains(topic) ? consumer.poll(waitTimeUnit.toMillis(waitTime))
+                            : null;
             if (crList != null) {
                 for (ConsumerRecord<String, byte[]> cr : crList) {
                     buffer.offer(cr);
@@ -557,6 +603,225 @@ public class KafkaMsgConsumer {
             _fetch(buffer, topic, waitTime, waitTimeUnit);
             cr = buffer.poll();
         }
-        return cr != null ? new KafkaMessage(cr) : null;
+        return cr != null ? new KafkaMessage(cr).consumerGroupId(consumerGroupId) : null;
     }
+
+    /**
+     * Commit the specified offsets for the last consumed message.
+     * 
+     * @param msg
+     * @return {@code true} if the topic is in subscription list, {@code false}
+     *         otherwise
+     * @since 1.3.2
+     */
+    public boolean commit(KafkaMessage msg) {
+        KafkaConsumer<String, byte[]> consumer = _getConsumer(msg.topic());
+        synchronized (consumer) {
+            Set<String> subscription = consumer.subscription();
+            if (subscription == null || !subscription.contains(msg.topic())) {
+                // this consumer has not subscribed to the topic
+                return false;
+            } else {
+                try {
+                    Map<TopicPartition, OffsetAndMetadata> offsets = new HashMap<>();
+                    offsets.put(new TopicPartition(msg.topic(), msg.partition()),
+                            new OffsetAndMetadata(msg.offset() + 1));
+                    consumer.commitSync(offsets);
+                } catch (WakeupException e) {
+                } catch (Exception e) {
+                    throw new KafkaException(e);
+                }
+                return true;
+            }
+        }
+    }
+
+    /**
+     * Commit the specified offsets for the last consumed message.
+     * 
+     * @param msg
+     * @return {@code true} if the topic is in subscription list, {@code false}
+     *         otherwise
+     * @since 1.3.2
+     */
+    public boolean commitAsync(KafkaMessage msg) {
+        KafkaConsumer<String, byte[]> consumer = _getConsumer(msg.topic());
+        synchronized (consumer) {
+            Set<String> subscription = consumer.subscription();
+            if (subscription == null || !subscription.contains(msg.topic())) {
+                // this consumer has not subscribed to the topic
+                return false;
+            } else {
+                try {
+                    Map<TopicPartition, OffsetAndMetadata> offsets = new HashMap<>();
+                    offsets.put(new TopicPartition(msg.topic(), msg.partition()),
+                            new OffsetAndMetadata(msg.offset() + 1));
+                    consumer.commitAsync(offsets, new OffsetCommitCallback() {
+                        @Override
+                        public void onComplete(Map<TopicPartition, OffsetAndMetadata> offsets,
+                                Exception e) {
+                            if (e != null) {
+                                LOGGER.error(e.getMessage(), e);
+                            }
+                        }
+                    });
+                } catch (WakeupException e) {
+                } catch (Exception e) {
+                    throw new KafkaException(e);
+                }
+                return true;
+            }
+        }
+    }
+
+    /**
+     * Commit offsets returned on the last poll for all the subscribed
+     * partitions.
+     * 
+     * @param topic
+     * @return {@code true} if the topic is in subscription list, {@code false}
+     *         otherwise
+     * @since 1.3.2
+     */
+    public boolean commit(String topic) {
+        KafkaConsumer<String, byte[]> consumer = _getConsumer(topic);
+        synchronized (consumer) {
+            Set<String> subscription = consumer.subscription();
+            if (subscription == null || !subscription.contains(topic)) {
+                // this consumer has not subscribed to the topic
+                return false;
+            }
+            try {
+                consumer.commitSync();
+            } catch (WakeupException e) {
+            } catch (Exception e) {
+                throw new KafkaException(e);
+            }
+            return true;
+        }
+    }
+
+    /**
+     * Commit offsets returned on the last poll for all the subscribed
+     * partitions.
+     * 
+     * @param topic
+     * @return {@code true} if the topic is in subscription list, {@code false}
+     *         otherwise
+     * @since 1.3.2
+     */
+    public boolean commitAsync(String topic) {
+        KafkaConsumer<String, byte[]> consumer = _getConsumer(topic);
+        synchronized (consumer) {
+            Set<String> subscription = consumer.subscription();
+            if (subscription == null || !subscription.contains(topic)) {
+                // this consumer has not subscribed to the topic
+                return false;
+            }
+            try {
+                consumer.commitAsync(new OffsetCommitCallback() {
+                    @Override
+                    public void onComplete(Map<TopicPartition, OffsetAndMetadata> offsets,
+                            Exception e) {
+                        if (e != null) {
+                            LOGGER.error(e.getMessage(), e);
+                        }
+                    }
+                });
+            } catch (WakeupException e) {
+            } catch (Exception e) {
+                throw new KafkaException(e);
+            }
+            return true;
+        }
+    }
+
+    /**
+     * Commit the specified offsets for the specified list of topics and
+     * partitions.
+     * 
+     * @param tpoList
+     * @since 1.3.2
+     */
+    public void commit(KafkaTopicPartitionOffset... tpoList) {
+        Map<String, Map<TopicPartition, OffsetAndMetadata>> topicOffsets = new HashMap<>();
+        for (KafkaTopicPartitionOffset tpo : tpoList) {
+            Map<TopicPartition, OffsetAndMetadata> offsets = topicOffsets.get(tpo.topic);
+            if (offsets == null) {
+                offsets = new HashMap<>();
+                topicOffsets.put(tpo.topic, offsets);
+            }
+            TopicPartition tp = new TopicPartition(tpo.topic, tpo.partition);
+            OffsetAndMetadata oam = new OffsetAndMetadata(tpo.offset);
+            offsets.put(tp, oam);
+        }
+        for (Entry<String, Map<TopicPartition, OffsetAndMetadata>> entry : topicOffsets
+                .entrySet()) {
+            String topic = entry.getKey();
+            KafkaConsumer<String, byte[]> consumer = _getConsumer(topic);
+            synchronized (consumer) {
+                Set<String> subscription = consumer.subscription();
+                if (subscription == null || !subscription.contains(topic)) {
+                    // this consumer has not subscribed to the topic
+                    LOGGER.warn("Not subscribed to topic [" + topic + "] yet!");
+                } else {
+                    try {
+                        consumer.commitSync(entry.getValue());
+                    } catch (WakeupException e) {
+                    } catch (Exception e) {
+                        throw new KafkaException(e);
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Commit the specified offsets for the specified list of topics and
+     * partitions.
+     * 
+     * @param tpoList
+     * @since 1.3.2
+     */
+    public void commitAsync(KafkaTopicPartitionOffset... tpoList) {
+        Map<String, Map<TopicPartition, OffsetAndMetadata>> topicOffsets = new HashMap<>();
+        for (KafkaTopicPartitionOffset tpo : tpoList) {
+            Map<TopicPartition, OffsetAndMetadata> offsets = topicOffsets.get(tpo.topic);
+            if (offsets == null) {
+                offsets = new HashMap<>();
+                topicOffsets.put(tpo.topic, offsets);
+            }
+            TopicPartition tp = new TopicPartition(tpo.topic, tpo.partition);
+            OffsetAndMetadata oam = new OffsetAndMetadata(tpo.offset);
+            offsets.put(tp, oam);
+        }
+        for (Entry<String, Map<TopicPartition, OffsetAndMetadata>> entry : topicOffsets
+                .entrySet()) {
+            String topic = entry.getKey();
+            KafkaConsumer<String, byte[]> consumer = _getConsumer(topic);
+            synchronized (consumer) {
+                Set<String> subscription = consumer.subscription();
+                if (subscription == null || !subscription.contains(topic)) {
+                    // this consumer has not subscribed to the topic
+                    LOGGER.warn("Not subscribed to topic [" + topic + "] yet!");
+                } else {
+                    try {
+                        consumer.commitAsync(entry.getValue(), new OffsetCommitCallback() {
+                            @Override
+                            public void onComplete(Map<TopicPartition, OffsetAndMetadata> offsets,
+                                    Exception e) {
+                                if (e != null) {
+                                    LOGGER.error(e.getMessage(), e);
+                                }
+                            }
+                        });
+                    } catch (WakeupException e) {
+                    } catch (Exception e) {
+                        throw new KafkaException(e);
+                    }
+                }
+            }
+        }
+    }
+
 }

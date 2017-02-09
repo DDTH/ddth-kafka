@@ -8,7 +8,7 @@ import com.github.ddth.kafka.IKafkaMessageListener;
 import com.github.ddth.kafka.KafkaClient;
 import com.github.ddth.kafka.KafkaMessage;
 
-public class QndProducerConsumerListener {
+public class QndMultithreadSyncProducerConsumerListener {
 
     private final static IdGenerator idGen = IdGenerator.getInstance(0);
 
