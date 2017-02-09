@@ -18,7 +18,7 @@ Third party libraries are distributed under their own licenses.
 
 ## Installation ##
 
-Latest release version: `1.3.1`. See [RELEASE-NOTES.md](RELEASE-NOTES.md).
+Latest release version: `1.3.1.1`. See [RELEASE-NOTES.md](RELEASE-NOTES.md).
 
 Maven dependency:
 
@@ -26,7 +26,7 @@ Maven dependency:
 <dependency>
 	<groupId>com.github.ddth</groupId>
 	<artifactId>ddth-kafka</artifactId>
-	<version>1.3.1</version>
+	<version>1.3.1.1</version>
 </dependency>
 ```
 

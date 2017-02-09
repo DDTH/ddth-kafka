@@ -1,8 +1,8 @@
 ddth-kafka release notes
 ========================
 
-1.3.1 - 2017-02-08
-------------------
+1.3.1.1 - 2017-02-08
+--------------------
 
 - Bug fixed & Enhancements.
 - `KafkaClient`'s new methods:
