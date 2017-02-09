@@ -36,7 +36,7 @@ public class QndConsumerThread {
 
             for (int i = 0; i < 10; i++) {
                 KafkaMessage msg = new KafkaMessage(TOPIC, i + ": " + System.currentTimeMillis());
-                kafkaClient.sendMessage(PRODUCER_TYPE, msg).get();
+                kafkaClient.sendMessage(PRODUCER_TYPE, msg);
                 Thread.sleep(RAND.nextInt(1000) + 1);
             }
 

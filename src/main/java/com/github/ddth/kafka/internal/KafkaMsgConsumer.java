@@ -10,6 +10,8 @@ import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
@@ -62,17 +64,11 @@ public class KafkaMsgConsumer {
 
     private String bootstrapServers;
     private KafkaConsumer<?, ?> metadataConsumer;
-    private boolean myOwnMetadataConsumer = true;
 
     private Properties consumerProperties;
 
-    /**
-     * Constructs an new {@link KafkaMsgConsumer} object.
-     */
-    public KafkaMsgConsumer(String bootstrapServers, String consumerGroupId) {
-        this.bootstrapServers = bootstrapServers;
-        this.consumerGroupId = consumerGroupId;
-    }
+    private ExecutorService executorService;
+    private boolean myOwnExecutorService = true;
 
     /**
      * Constructs an new {@link KafkaMsgConsumer} object.
@@ -126,7 +122,6 @@ public class KafkaMsgConsumer {
      */
     public KafkaMsgConsumer setMetadataConsumer(KafkaConsumer<?, ?> metadataConsumer) {
         this.metadataConsumer = metadataConsumer;
-        myOwnMetadataConsumer = false;
         return this;
     }
 
@@ -225,12 +220,12 @@ public class KafkaMsgConsumer {
      * Initializing method.
      */
     public void init() {
-        if (metadataConsumer == null) {
-            metadataConsumer = KafkaHelper.createKafkaConsumer(bootstrapServers, consumerGroupId,
-                    consumeFromBeginning, true, false, consumerProperties);
-            myOwnMetadataConsumer = true;
+        if (executorService == null) {
+            int numThreads = Math.min(Math.max(Runtime.getRuntime().availableProcessors(), 1), 4);
+            executorService = Executors.newFixedThreadPool(numThreads);
+            myOwnExecutorService = true;
         } else {
-            myOwnMetadataConsumer = false;
+            myOwnExecutorService = false;
         }
     }
 
@@ -238,16 +233,6 @@ public class KafkaMsgConsumer {
      * Destroying method.
      */
     public void destroy() {
-        if (metadataConsumer != null && myOwnMetadataConsumer) {
-            try {
-                metadataConsumer.close();
-            } catch (Exception e) {
-                LOGGER.warn(e.getMessage(), e);
-            } finally {
-                metadataConsumer = null;
-            }
-        }
-
         // stop all workers
         for (KafkaMsgConsumerWorker worker : topicWorkers.values()) {
             try {
@@ -264,12 +249,23 @@ public class KafkaMsgConsumer {
         // close all KafkaConsumer
         for (KafkaConsumer<String, byte[]> consumer : topicConsumers.values()) {
             try {
+                consumer.commitSync();
                 consumer.close();
             } catch (Exception e) {
                 LOGGER.warn(e.getMessage(), e);
             }
         }
         topicConsumers.clear();
+
+        if (executorService != null && myOwnExecutorService) {
+            try {
+                executorService.shutdownNow();
+            } catch (Exception e) {
+                LOGGER.warn(e.getMessage(), e);
+            } finally {
+                executorService = null;
+            }
+        }
     }
 
     private Map<String, List<PartitionInfo>> topicInfo = null;
@@ -339,6 +335,22 @@ public class KafkaMsgConsumer {
     }
 
     /**
+     * Sets an {@link ExecutorService} to be used for async task.
+     * 
+     * @param executorService
+     * @return
+     * @since 1.3.1
+     */
+    public KafkaMsgConsumer setExecutorService(ExecutorService executorService) {
+        if (this.executorService != null) {
+            this.executorService.shutdown();
+        }
+        this.executorService = executorService;
+        myOwnExecutorService = false;
+        return this;
+    }
+
+    /**
      * Seeks to the beginning of all partitions of a topic.
      * 
      * @param topic
@@ -373,7 +385,8 @@ public class KafkaMsgConsumer {
         KafkaConsumer<String, byte[]> consumer = topicConsumers.get(topic);
         if (consumer == null) {
             consumer = KafkaHelper.createKafkaConsumer(bootstrapServers, consumerGroupId,
-                    consumeFromBeginning, autoCommitOffset, autoCommitOffset, consumerProperties);
+                    consumeFromBeginning, autoCommitOffset, leaderAutoRebalance,
+                    consumerProperties);
             KafkaConsumer<String, byte[]> existingConsumer = topicConsumers.putIfAbsent(topic,
                     consumer);
             if (existingConsumer != null) {
@@ -415,7 +428,7 @@ public class KafkaMsgConsumer {
         KafkaMsgConsumerWorker worker = topicWorkers.get(topic);
         if (worker == null) {
             Collection<IKafkaMessageListener> msgListeners = topicMsgListeners.get(topic);
-            worker = new KafkaMsgConsumerWorker(this, topic, msgListeners);
+            worker = new KafkaMsgConsumerWorker(this, topic, msgListeners, executorService);
             KafkaMsgConsumerWorker existingWorker = topicWorkers.putIfAbsent(topic, worker);
             if (existingWorker != null) {
                 worker = existingWorker;
@@ -489,7 +502,7 @@ public class KafkaMsgConsumer {
      * @return the consumed message or {@code null} if no message available
      */
     public KafkaMessage consume(final String topic) {
-        return consume(topic, 10, TimeUnit.MILLISECONDS);
+        return consume(topic, 1000, TimeUnit.MILLISECONDS);
     }
 
     /**
@@ -507,10 +520,10 @@ public class KafkaMsgConsumer {
             Set<String> subscription = consumer.subscription();
             if (subscription == null || subscription.size() == 0) {
                 // this consumer has not subscribed to any topic yet
-                if (topicExists(topic)) {
-                    List<String> topics = Arrays.asList(topic);
-                    consumer.subscribe(topics);
-                }
+                // if (topicExists(topic)) {
+                List<String> topics = Arrays.asList(topic);
+                consumer.subscribe(topics);
+                // }
             }
             try {
                 consumer.commitSync();

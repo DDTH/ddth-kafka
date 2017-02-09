@@ -115,7 +115,7 @@ public class QndEmbeddedServer {
                 KafkaClient kafkaClient = createKafkaClient(KAFKA_PORT);
                 try {
                     KafkaMessage msg = new KafkaMessage("demo", "Message content");
-                    msg = kafkaClient.sendMessage(msg).get();
+                    msg = kafkaClient.sendMessage(msg);
                     System.out.println("Sent message: " + msg);
 
                     Thread.sleep(30000);

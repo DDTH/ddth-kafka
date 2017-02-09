@@ -2,29 +2,32 @@ package com.github.ddth.kafka.internal;
 
 import java.util.Collection;
 import java.util.HashSet;
-import java.util.concurrent.CountDownLatch;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import com.github.ddth.kafka.IKafkaMessageListener;
 import com.github.ddth.kafka.KafkaMessage;
 
 public class KafkaMsgConsumerWorker extends Thread {
 
-    private Logger LOGGER = LoggerFactory.getLogger(KafkaMsgConsumerWorker.class);
+    // private Logger LOGGER =
+    // LoggerFactory.getLogger(KafkaMsgConsumerWorker.class);
 
     private KafkaMsgConsumer consumer;
     private Collection<IKafkaMessageListener> messageListerners;
     private String topic;
     private boolean stop = false;
 
+    private ExecutorService executorService;
+
     public KafkaMsgConsumerWorker(KafkaMsgConsumer consumer, String topic,
-            Collection<IKafkaMessageListener> messageListerners) {
+            Collection<IKafkaMessageListener> messageListerners, ExecutorService executorService) {
         super(KafkaMsgConsumerWorker.class.getCanonicalName() + " - " + topic);
         this.consumer = consumer;
         this.topic = topic;
         this.messageListerners = messageListerners;
+        this.executorService = executorService;
     }
 
     /**
@@ -34,30 +37,48 @@ public class KafkaMsgConsumerWorker extends Thread {
         stop = true;
     }
 
-    private void deliverMessage(final KafkaMessage msg,
-            Collection<IKafkaMessageListener> msgListeners) {
-        final CountDownLatch countDownLatch = new CountDownLatch(msgListeners.size());
+    private void deliverMessage(KafkaMessage msg, Collection<IKafkaMessageListener> msgListeners) {
+        AtomicInteger counter = new AtomicInteger(msgListeners.size());
         for (final IKafkaMessageListener listerner : msgListeners) {
-            // Delivery the consumed message to n-listeners
-            // asynchronously
-            Thread t = new Thread("Kafka-Consumer-Delivery") {
+            executorService.submit(new Runnable() {
+                @Override
                 public void run() {
                     try {
                         listerner.onMessage(msg);
-                    } catch (Exception e) {
-                        LOGGER.warn(e.getMessage(), e);
                     } finally {
-                        countDownLatch.countDown();
+                        counter.decrementAndGet();
                     }
                 }
-            };
-            t.start();
-            try {
-                countDownLatch.await();
-            } catch (InterruptedException e) {
-                LOGGER.warn(e.getMessage(), e);
-            }
+            });
         }
+        while (counter.get() > 0)
+            ;
+
+        // if (true)
+        // return;
+        // final CountDownLatch countDownLatch = new
+        // CountDownLatch(msgListeners.size());
+        // for (final IKafkaMessageListener listerner : msgListeners) {
+        // // Delivery the consumed message to n-listeners
+        // // asynchronously
+        // Thread t = new Thread("Kafka-Consumer-Delivery") {
+        // public void run() {
+        // try {
+        // listerner.onMessage(msg);
+        // } catch (Exception e) {
+        // LOGGER.warn(e.getMessage(), e);
+        // } finally {
+        // countDownLatch.countDown();
+        // }
+        // }
+        // };
+        // t.start();
+        // try {
+        // countDownLatch.await();
+        // } catch (InterruptedException e) {
+        // LOGGER.warn(e.getMessage(), e);
+        // }
+        // }
     }
 
     @Override
@@ -68,12 +89,15 @@ public class KafkaMsgConsumerWorker extends Thread {
             msgListeners.addAll(messageListerners);
 
             if (msgListeners.size() > 0) {
-                KafkaMessage msg = consumer.consume(topic);
+                KafkaMessage msg = consumer.consume(topic, 100, TimeUnit.MILLISECONDS);
                 if (msg != null) {
                     deliverMessage(msg, msgListeners);
                 }
             }
-            Thread.yield();
+            try {
+                Thread.sleep(1);
+            } catch (InterruptedException e) {
+            }
         }
     }
 }

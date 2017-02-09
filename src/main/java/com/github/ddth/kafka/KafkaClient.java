@@ -17,6 +17,7 @@ import java.util.concurrent.TimeUnit;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
+import org.apache.kafka.clients.producer.Callback;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.clients.producer.RecordMetadata;
@@ -26,11 +27,6 @@ import org.slf4j.LoggerFactory;
 
 import com.github.ddth.kafka.internal.KafkaHelper;
 import com.github.ddth.kafka.internal.KafkaMsgConsumer;
-import com.google.common.cache.CacheBuilder;
-import com.google.common.cache.CacheLoader;
-import com.google.common.cache.LoadingCache;
-import com.google.common.cache.RemovalListener;
-import com.google.common.cache.RemovalNotification;
 
 /**
  * A simple Kafka client (producer & consumer).
@@ -57,6 +53,8 @@ public class KafkaClient implements Closeable {
      */
     public static enum ProducerType {
         FULL_ASYNC, SYNC_NO_ACK, SYNC_LEADER_ACK, SYNC_ALL_ACKS;
+        public final static ProducerType[] ALL_TYPES = { FULL_ASYNC, SYNC_NO_ACK, SYNC_LEADER_ACK,
+                SYNC_ALL_ACKS };
     }
 
     public final static ProducerType DEFAULT_PRODUCER_TYPE = ProducerType.SYNC_LEADER_ACK;
@@ -149,6 +147,12 @@ public class KafkaClient implements Closeable {
         return this;
     }
 
+    /**
+     * Sets an {@link ExecutorService} to be used for async task.
+     * 
+     * @param executorService
+     * @return
+     */
     public KafkaClient setExecutorService(ExecutorService executorService) {
         if (this.executorService != null) {
             this.executorService.shutdown();
@@ -226,7 +230,15 @@ public class KafkaClient implements Closeable {
 
         if (metadataConsumer == null) {
             metadataConsumer = KafkaHelper.createKafkaConsumer(getKafkaBootstrapServers(),
-                    getMetadataConsumerGroupId(), true, false, true);
+                    getMetadataConsumerGroupId(), false, true, false);
+        }
+
+        if (cacheProducers == null) {
+            cacheProducers = new ConcurrentHashMap<>();
+            for (ProducerType type : ProducerType.ALL_TYPES) {
+                cacheProducers.put(type, KafkaHelper.createKafkaProducer(type,
+                        kafkaBootstrapServers, producerProperties));
+            }
         }
 
         return this;
@@ -246,6 +258,19 @@ public class KafkaClient implements Closeable {
      * Destroying method.
      */
     public void destroy() {
+        if (cacheProducers != null) {
+            for (Entry<ProducerType, KafkaProducer<String, byte[]>> entry : cacheProducers
+                    .entrySet()) {
+                try {
+                    KafkaProducer<String, byte[]> producer = entry.getValue();
+                    producer.close();
+                } catch (Exception e) {
+                    LOGGER.warn(e.getMessage(), e);
+                }
+            }
+            cacheProducers = null;
+        }
+
         try {
             if (metadataConsumer != null) {
                 metadataConsumer.close();
@@ -254,16 +279,6 @@ public class KafkaClient implements Closeable {
             LOGGER.warn(e.getMessage(), e);
         } finally {
             metadataConsumer = null;
-        }
-
-        try {
-            if (cacheJavaProducers != null) {
-                cacheJavaProducers.invalidateAll();
-            }
-        } catch (Exception e) {
-            LOGGER.warn(e.getMessage(), e);
-        } finally {
-            cacheJavaProducers = null;
         }
 
         if (cacheConsumers != null) {
@@ -300,14 +315,6 @@ public class KafkaClient implements Closeable {
         return executorService.submit(task);
     }
 
-    // private <T> Future<T> submitTask(Runnable task, T result) {
-    // return executorService.submit(task, result);
-    // }
-    //
-    // private <T> Future<T> submitTask(Callable<T> task) {
-    // return executorService.submit(task);
-    // }
-
     /*----------------------------------------------------------------------*/
     /* ADMIN */
     /*----------------------------------------------------------------------*/
@@ -331,7 +338,8 @@ public class KafkaClient implements Closeable {
      * @since 1.2.0
      */
     public int getNumPartitions(String topicName) {
-        return getKafkaConsumer(getMetadataConsumerGroupId(), false).getNumPartitions(topicName);
+        List<PartitionInfo> partitionList = getPartitionInfo(topicName);
+        return partitionList != null ? partitionList.size() : 0;
     }
 
     /**
@@ -343,7 +351,7 @@ public class KafkaClient implements Closeable {
      * @since 1.3.0
      */
     public List<PartitionInfo> getPartitionInfo(String topicName) {
-        return getKafkaConsumer(getMetadataConsumerGroupId(), false).getPartitionInfo(topicName);
+        return getJavaProducer(DEFAULT_PRODUCER_TYPE).partitionsFor(topicName);
     }
 
     /**
@@ -359,7 +367,7 @@ public class KafkaClient implements Closeable {
     /*----------------------------------------------------------------------*/
     /* CONSUMER */
     /*----------------------------------------------------------------------*/
-    /* Mapping {consumer-group-id -> KafkaConsumer} */
+    /* Mapping {consumer-group-id -> KafkaMsgConsumer} */
     private ConcurrentMap<String, KafkaMsgConsumer> cacheConsumers = new ConcurrentHashMap<String, KafkaMsgConsumer>();
 
     private KafkaMsgConsumer _newKafkaConsumer(String consumerGroupId,
@@ -368,6 +376,7 @@ public class KafkaClient implements Closeable {
                 consumerGroupId, consumeFromBeginning);
         kafkaConsumer.setConsumerProperties(consumerProperties);
         kafkaConsumer.setMetadataConsumer(metadataConsumer);
+        kafkaConsumer.setExecutorService(executorService);
         kafkaConsumer.init();
         return kafkaConsumer;
     }
@@ -528,34 +537,13 @@ public class KafkaClient implements Closeable {
         return kafkaConsumer != null ? kafkaConsumer.removeMessageListener(topic, messageListener)
                 : false;
     }
-
-    // public boolean hasTopic(String topic) {
-    //
-    // }
-
     /*----------------------------------------------------------------------*/
 
     /*----------------------------------------------------------------------*/
     /* PRODUCER */
     /*----------------------------------------------------------------------*/
-    private LoadingCache<ProducerType, KafkaProducer<String, byte[]>> cacheJavaProducers = CacheBuilder
-            .newBuilder().expireAfterAccess(3600, TimeUnit.SECONDS)
-            .removalListener(new RemovalListener<ProducerType, KafkaProducer<String, byte[]>>() {
-                @Override
-                public void onRemoval(
-                        RemovalNotification<ProducerType, KafkaProducer<String, byte[]>> entry) {
-                    entry.getValue().close();
-                }
-            }).build(new CacheLoader<ProducerType, KafkaProducer<String, byte[]>>() {
-                @Override
-                public KafkaProducer<String, byte[]> load(ProducerType type) throws Exception {
-                    return _newJavaProducer(type);
-                }
-            });
-
-    private KafkaProducer<String, byte[]> _newJavaProducer(ProducerType type) {
-        return KafkaHelper.createKafkaProducer(type, kafkaBootstrapServers, producerProperties);
-    }
+    /* Mapping {producer-type -> KafkaProducer} */
+    private ConcurrentMap<ProducerType, KafkaProducer<String, byte[]>> cacheProducers;
 
     /**
      * Gets a Java producer of a specific type.
@@ -564,11 +552,7 @@ public class KafkaClient implements Closeable {
      * @return
      */
     private KafkaProducer<String, byte[]> getJavaProducer(ProducerType type) {
-        try {
-            return cacheJavaProducers.get(type);
-        } catch (ExecutionException e) {
-            throw new KafkaException(e.getCause());
-        }
+        return cacheProducers.get(type);
     }
 
     /**
@@ -577,7 +561,7 @@ public class KafkaClient implements Closeable {
      * @param message
      * @return a copy of message filled with partition number and offset
      */
-    public Future<KafkaMessage> sendMessage(KafkaMessage message) {
+    public KafkaMessage sendMessage(KafkaMessage message) {
         return sendMessage(DEFAULT_PRODUCER_TYPE, message);
     }
 
@@ -588,31 +572,150 @@ public class KafkaClient implements Closeable {
      * @param message
      * @return a copy of message filled with partition number and offset
      */
-    public Future<KafkaMessage> sendMessage(final ProducerType type, final KafkaMessage message) {
-        KafkaProducer<String, byte[]> producer = getJavaProducer(type);
-
+    public KafkaMessage sendMessage(ProducerType type, KafkaMessage message) {
         String key = message.key();
-        String topic = message.topic();
-        byte[] value = message.content();
         ProducerRecord<String, byte[]> record = StringUtils.isEmpty(key)
-                ? new ProducerRecord<String, byte[]>(topic, value)
-                : new ProducerRecord<String, byte[]>(topic, key, value);
-        final Future<RecordMetadata> fRecordMetadata = producer.send(record);
-        FutureTask<KafkaMessage> result = new FutureTask<KafkaMessage>(
-                new Callable<KafkaMessage>() {
-                    @Override
-                    public KafkaMessage call() throws Exception {
-                        RecordMetadata recordMetadata = fRecordMetadata.get();
-                        if (recordMetadata != null) {
-                            KafkaMessage kafkaMessage = new KafkaMessage(message);
-                            kafkaMessage.partition(recordMetadata.partition());
-                            kafkaMessage.offset(recordMetadata.offset());
-                            return kafkaMessage;
-                        }
-                        return null;
-                    }
-                });
+                ? new ProducerRecord<String, byte[]>(message.topic(), message.content())
+                : new ProducerRecord<String, byte[]>(message.topic(), key, message.content());
+        KafkaProducer<String, byte[]> producer = getJavaProducer(type);
+        try {
+            RecordMetadata metadata = producer.send(record).get();
+            KafkaMessage kafkaMessage = new KafkaMessage(message);
+            kafkaMessage.partition(metadata.partition());
+            kafkaMessage.offset(metadata.offset());
+            return kafkaMessage;
+        } catch (InterruptedException | ExecutionException e) {
+            throw new KafkaException(e);
+        }
+    }
+
+    /**
+     * Flushes any messages in producer queue.
+     * 
+     * @since 1.3.1
+     */
+    public void flush() {
+        for (ProducerType type : ProducerType.ALL_TYPES) {
+            KafkaProducer<String, byte[]> producer = getJavaProducer(type);
+            if (producer != null) {
+                producer.flush();
+            }
+        }
+    }
+
+    /**
+     * Sends a message asynchronously, with default {@link ProducerType}.
+     * 
+     * @param message
+     * @return a copy of message filled with partition number and offset
+     * @since 1.3.1
+     */
+    public Future<KafkaMessage> sendMessageAsync(KafkaMessage message) {
+        return sendMessageAsync(DEFAULT_PRODUCER_TYPE, message);
+    }
+
+    /**
+     * Sends a message asynchronously, specifying {@link ProducerType}.
+     * 
+     * @param type
+     * @param message
+     * @return a copy of message filled with partition number and offset
+     */
+    public Future<KafkaMessage> sendMessageAsync(ProducerType type, KafkaMessage message) {
+        String key = message.key();
+        ProducerRecord<String, byte[]> record = StringUtils.isEmpty(key)
+                ? new ProducerRecord<String, byte[]>(message.topic(), message.content())
+                : new ProducerRecord<String, byte[]>(message.topic(), key, message.content());
+        KafkaProducer<String, byte[]> producer = getJavaProducer(type);
+        Future<RecordMetadata> fRecordMetadata = producer.send(record);
+        FutureTask<KafkaMessage> result = new FutureTask<>(new Callable<KafkaMessage>() {
+            @Override
+            public KafkaMessage call() throws Exception {
+                RecordMetadata recordMetadata = fRecordMetadata.get();
+                if (recordMetadata != null) {
+                    KafkaMessage kafkaMessage = new KafkaMessage(message);
+                    kafkaMessage.partition(recordMetadata.partition());
+                    kafkaMessage.offset(recordMetadata.offset());
+                    return kafkaMessage;
+                }
+                throw new KafkaException("Error while sending message to broker");
+            }
+        });
         submitTask(result);
         return result;
+    }
+
+    /**
+     * Sends a message asynchronously, with default {@link ProducerType}.
+     * 
+     * <p>
+     * This methods returns the underlying Kafka producer's output directly to
+     * caller, not converting {@link RecordMetadata} to {@link KafkaMessage}.
+     * </p>
+     * 
+     * @param message
+     * @return
+     * @since 1.3.1
+     */
+    public Future<RecordMetadata> sendMessageRaw(KafkaMessage message) {
+        return sendMessageRaw(DEFAULT_PRODUCER_TYPE, message);
+    }
+
+    /**
+     * Sends a message asynchronously, with default {@link ProducerType}.
+     * 
+     * <p>
+     * This methods returns the underlying Kafka producer's output directly to
+     * caller, not converting {@link RecordMetadata} to {@link KafkaMessage}.
+     * </p>
+     * 
+     * @param message
+     * @param callback
+     * @return
+     * @since 1.3.1
+     */
+    public Future<RecordMetadata> sendMessageRaw(KafkaMessage message, Callback callback) {
+        return sendMessageRaw(DEFAULT_PRODUCER_TYPE, message, callback);
+    }
+
+    /**
+     * Sends a message asynchronously, specifying {@link ProducerType}.
+     * 
+     * <p>
+     * This methods returns the underlying Kafka producer's output directly to
+     * caller, not converting {@link RecordMetadata} to {@link KafkaMessage}.
+     * </p>
+     * 
+     * @param type
+     * @param message
+     * @return
+     * @since 1.3.1
+     */
+    public Future<RecordMetadata> sendMessageRaw(ProducerType type, KafkaMessage message) {
+        return sendMessageRaw(DEFAULT_PRODUCER_TYPE, message, null);
+    }
+
+    /**
+     * Sends a message asynchronously, specifying {@link ProducerType}.
+     * 
+     * <p>
+     * This methods returns the underlying Kafka producer's output directly to
+     * caller, not converting {@link RecordMetadata} to {@link KafkaMessage}.
+     * </p>
+     * 
+     * @param type
+     * @param message
+     * @param callback
+     * @return
+     * @since 1.3.1
+     */
+    public Future<RecordMetadata> sendMessageRaw(ProducerType type, KafkaMessage message,
+            Callback callback) {
+        String key = message.key();
+        ProducerRecord<String, byte[]> record = StringUtils.isEmpty(key)
+                ? new ProducerRecord<String, byte[]>(message.topic(), message.content())
+                : new ProducerRecord<String, byte[]>(message.topic(), key, message.content());
+        KafkaProducer<String, byte[]> producer = getJavaProducer(type);
+        return producer.send(record, callback);
     }
 }

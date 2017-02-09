@@ -31,21 +31,17 @@ public class KafkaClientTest extends BaseKafkaTest {
     }
 
     @org.junit.Test
-    public void testConsumeOneByOne() throws Exception {
+    public void testSendSyncConsumeOneByOne() throws Exception {
         createTopic(TOPIC);
         warnup(TOPIC, CONSUMER_GROUP_ID);
 
         final Set<String> TEST_MSGS = new HashSet<String>(Arrays.asList("message - 0",
                 "message - 1", "message - 2", "message - 3", "message - 4", "message - 5",
                 "message - 6", "message - 7", "message - 8", "message - 9"));
-        // System.out.println("testConsumeOneByOne()====================");
         for (String content : TEST_MSGS) {
             KafkaMessage msg = new KafkaMessage(TOPIC, content, content);
-            Future<KafkaMessage> resultMgs = kafkaClient.sendMessage(msg);
-            msg = resultMgs.get(1000, TimeUnit.MILLISECONDS);
-            assertNotNull(msg);
-            // System.out.println(content + "\t" + msg.partition() + " / " +
-            // msg.offset());
+            KafkaMessage result = kafkaClient.sendMessage(msg);
+            assertNotNull(result);
         }
 
         for (int i = 0, n = TEST_MSGS.size(); i < n; i++) {
@@ -58,21 +54,40 @@ public class KafkaClientTest extends BaseKafkaTest {
     }
 
     @org.junit.Test
-    public void testConsumeListenerAfter() throws Exception {
+    public void testSendAsyncConsumeOneByOne() throws Exception {
         createTopic(TOPIC);
         warnup(TOPIC, CONSUMER_GROUP_ID);
 
         final Set<String> TEST_MSGS = new HashSet<String>(Arrays.asList("message - 0",
                 "message - 1", "message - 2", "message - 3", "message - 4", "message - 5",
                 "message - 6", "message - 7", "message - 8", "message - 9"));
-        // System.out.println("testConsumeListenerAfter()====================");
+        for (String content : TEST_MSGS) {
+            KafkaMessage msg = new KafkaMessage(TOPIC, content, content);
+            Future<KafkaMessage> result = kafkaClient.sendMessageAsync(msg);
+            assertNotNull(result);
+        }
+
+        for (int i = 0, n = TEST_MSGS.size(); i < n; i++) {
+            KafkaMessage msg = kafkaClient.consumeMessage(CONSUMER_GROUP_ID, true, TOPIC, 10000,
+                    TimeUnit.MILLISECONDS);
+            String strMsg = msg.contentAsString();
+            assertTrue(TEST_MSGS.contains(strMsg));
+            TEST_MSGS.remove(strMsg);
+        }
+    }
+
+    @org.junit.Test
+    public void testSendSyncConsumeListenerAfter() throws Exception {
+        createTopic(TOPIC);
+        warnup(TOPIC, CONSUMER_GROUP_ID);
+
+        final Set<String> TEST_MSGS = new HashSet<String>(Arrays.asList("message - 0",
+                "message - 1", "message - 2", "message - 3", "message - 4", "message - 5",
+                "message - 6", "message - 7", "message - 8", "message - 9"));
         for (String content : TEST_MSGS) {
             KafkaMessage msg = new KafkaMessage(TOPIC, content);
-            Future<KafkaMessage> resultMgs = kafkaClient.sendMessage(msg);
-            msg = resultMgs.get(1000, TimeUnit.MILLISECONDS);
-            assertNotNull(msg);
-            // System.out.println(content + "\t" + msg.partition() + " / " +
-            // msg.offset());
+            KafkaMessage result = kafkaClient.sendMessage(msg);
+            assertNotNull(result);
         }
 
         final Set<String> RECEIVED_MSG = new HashSet<String>();
@@ -84,14 +99,49 @@ public class KafkaClientTest extends BaseKafkaTest {
             }
         };
         kafkaClient.addMessageListener(CONSUMER_GROUP_ID, true, TOPIC, msgListener);
-        Thread.sleep(5000);
+        long t = System.currentTimeMillis();
+        while (RECEIVED_MSG.size() < TEST_MSGS.size() && System.currentTimeMillis() - t < 30000) {
+            Thread.sleep(1);
+        }
 
         assertEquals(TEST_MSGS.size(), RECEIVED_MSG.size());
         assertEquals(TEST_MSGS, RECEIVED_MSG);
     }
 
     @org.junit.Test
-    public void testConsumeListenerBefore() throws Exception {
+    public void testSendAsyncConsumeListenerAfter() throws Exception {
+        createTopic(TOPIC);
+        warnup(TOPIC, CONSUMER_GROUP_ID);
+
+        final Set<String> TEST_MSGS = new HashSet<String>(Arrays.asList("message - 0",
+                "message - 1", "message - 2", "message - 3", "message - 4", "message - 5",
+                "message - 6", "message - 7", "message - 8", "message - 9"));
+        for (String content : TEST_MSGS) {
+            KafkaMessage msg = new KafkaMessage(TOPIC, content);
+            Future<KafkaMessage> result = kafkaClient.sendMessageAsync(msg);
+            assertNotNull(result);
+        }
+
+        final Set<String> RECEIVED_MSG = new HashSet<String>();
+        IKafkaMessageListener msgListener = new IKafkaMessageListener() {
+            @Override
+            public void onMessage(KafkaMessage message) {
+                String msgStr = message != null ? message.contentAsString() : null;
+                RECEIVED_MSG.add(msgStr);
+            }
+        };
+        kafkaClient.addMessageListener(CONSUMER_GROUP_ID, true, TOPIC, msgListener);
+        long t = System.currentTimeMillis();
+        while (RECEIVED_MSG.size() < TEST_MSGS.size() && System.currentTimeMillis() - t < 30000) {
+            Thread.sleep(1);
+        }
+
+        assertEquals(TEST_MSGS.size(), RECEIVED_MSG.size());
+        assertEquals(TEST_MSGS, RECEIVED_MSG);
+    }
+
+    @org.junit.Test
+    public void testSendSyncConsumeListenerBefore() throws Exception {
         createTopic(TOPIC);
         warnup(TOPIC, CONSUMER_GROUP_ID);
 
@@ -108,17 +158,47 @@ public class KafkaClientTest extends BaseKafkaTest {
         final Set<String> TEST_MSGS = new HashSet<String>(Arrays.asList("message - 0",
                 "message - 1", "message - 2", "message - 3", "message - 4", "message - 5",
                 "message - 6", "message - 7", "message - 8", "message - 9"));
-        // System.out.println("testConsumeListenerBefore()====================");
         for (String content : TEST_MSGS) {
             KafkaMessage msg = new KafkaMessage(TOPIC, content);
-            Future<KafkaMessage> resultMgs = kafkaClient.sendMessage(msg);
-            msg = resultMgs.get(1000, TimeUnit.MILLISECONDS);
-            assertNotNull(msg);
-            // System.out.println(content + "\t" + msg.partition() + " / " +
-            // msg.offset());
+            KafkaMessage result = kafkaClient.sendMessage(msg);
+            assertNotNull(result);
+        }
+        long t = System.currentTimeMillis();
+        while (RECEIVED_MSG.size() < TEST_MSGS.size() && System.currentTimeMillis() - t < 30000) {
+            Thread.sleep(1);
         }
 
-        Thread.sleep(2000);
+        assertEquals(TEST_MSGS.size(), RECEIVED_MSG.size());
+        assertEquals(TEST_MSGS, RECEIVED_MSG);
+    }
+
+    @org.junit.Test
+    public void testSendAsyncConsumeListenerBefore() throws Exception {
+        createTopic(TOPIC);
+        warnup(TOPIC, CONSUMER_GROUP_ID);
+
+        final Set<String> RECEIVED_MSG = new HashSet<String>();
+        IKafkaMessageListener msgListener = new IKafkaMessageListener() {
+            @Override
+            public void onMessage(KafkaMessage message) {
+                String msgStr = message != null ? message.contentAsString() : null;
+                RECEIVED_MSG.add(msgStr);
+            }
+        };
+        kafkaClient.addMessageListener(CONSUMER_GROUP_ID, true, TOPIC, msgListener);
+
+        final Set<String> TEST_MSGS = new HashSet<String>(Arrays.asList("message - 0",
+                "message - 1", "message - 2", "message - 3", "message - 4", "message - 5",
+                "message - 6", "message - 7", "message - 8", "message - 9"));
+        for (String content : TEST_MSGS) {
+            KafkaMessage msg = new KafkaMessage(TOPIC, content);
+            Future<KafkaMessage> result = kafkaClient.sendMessageAsync(msg);
+            assertNotNull(result);
+        }
+        long t = System.currentTimeMillis();
+        while (RECEIVED_MSG.size() < TEST_MSGS.size() && System.currentTimeMillis() - t < 30000) {
+            Thread.sleep(1);
+        }
 
         assertEquals(TEST_MSGS.size(), RECEIVED_MSG.size());
         assertEquals(TEST_MSGS, RECEIVED_MSG);

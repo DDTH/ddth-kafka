@@ -35,7 +35,7 @@ public class QndConsumerMessageListener {
             for (int i = 0; i < NUM_MSGS; i++) {
                 KafkaMessage msg = new KafkaMessage(TOPIC,
                         "message - " + i + ": " + System.currentTimeMillis());
-                kafkaClient.sendMessage(msg).get();
+                kafkaClient.sendMessage(msg);
             }
             Thread.sleep(5000);
 

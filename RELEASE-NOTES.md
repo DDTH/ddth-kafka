@@ -1,6 +1,17 @@
 ddth-kafka release notes
 ========================
 
+1.3.1 - 2017-02-08
+------------------
+
+- Bug fixed & Enhancements.
+- `KafkaClient`'s new methods:
+  - `void flush()`: flushes any messages in producer queue.
+  - `Future<KafkaMessage> sendMessageAsync(...)`: sends a message asynchronously.
+  - `Future<RecordMetadata> sendMessageRaw(...)`: sends a message asynchronously.
+  - [BREAKING CHANGE] `KafkaMessage sendMessage(...)` is now synchronously.
+
+
 1.3.0 - 2017-01-11
 ------------------
 
