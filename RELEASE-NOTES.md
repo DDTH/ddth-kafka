@@ -1,6 +1,16 @@
 ddth-kafka release notes
 ========================
 
+1.3.3 - 2017-02-12
+------------------
+
+- Fixes & changes:
+  - Now there are only 3 producer types: `NO_ACK`, `LEADER_ACK` and `ALL_ACKS` as the new Java Producer
+    is async by default.
+  - Remove options/properties when building consumer: `auto.leader.rebalance.enable`, `rebalance.backoff.ms`, `refresh.leader.backoff.ms`,
+    `controlled.shutdown.enable`, `controlled.shutdown.max.retries`, `controlled.shutdown.retry.backoff.ms`
+
+
 1.3.2 - 2017-02-09
 ------------------
 

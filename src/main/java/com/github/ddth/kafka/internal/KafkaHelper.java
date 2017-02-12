@@ -224,25 +224,25 @@ public class KafkaHelper {
         props.put(ProducerConfig.RETRY_BACKOFF_MS_CONFIG, String.valueOf(1000));
 
         switch (type) {
-        case FULL_ASYNC: {
-            props.put(ProducerConfig.ACKS_CONFIG, "0");
-            props.put("producer.type", "async");
-            break;
-        }
-        case SYNC_LEADER_ACK: {
+        // case FULL_ASYNC: {
+        // props.put(ProducerConfig.ACKS_CONFIG, "0");
+        // props.put("producer.type", "async");
+        // break;
+        // }
+        case LEADER_ACK: {
             props.put(ProducerConfig.ACKS_CONFIG, "1");
-            props.put("producer.type", "sync");
+            // props.put("producer.type", "sync");
             break;
         }
-        case SYNC_ALL_ACKS: {
+        case ALL_ACKS: {
             props.put(ProducerConfig.ACKS_CONFIG, "all");
-            props.put("producer.type", "sync");
+            // props.put("producer.type", "sync");
             break;
         }
-        case SYNC_NO_ACK:
+        case NO_ACK:
         default: {
             props.put(ProducerConfig.ACKS_CONFIG, "0");
-            props.put("producer.type", "sync");
+            // props.put("producer.type", "sync");
             break;
         }
         }
@@ -263,14 +263,12 @@ public class KafkaHelper {
      * @param consumerGroupId
      * @param consumeFromBeginning
      * @param autoCommitOffsets
-     * @param leaderAutoRebalance
      * @return
      */
     public static KafkaConsumer<String, byte[]> createKafkaConsumer(String bootstrapServers,
-            String consumerGroupId, boolean consumeFromBeginning, boolean autoCommitOffsets,
-            boolean leaderAutoRebalance) {
+            String consumerGroupId, boolean consumeFromBeginning, boolean autoCommitOffsets) {
         return createKafkaConsumer(bootstrapServers, consumerGroupId, consumeFromBeginning,
-                autoCommitOffsets, leaderAutoRebalance, null);
+                autoCommitOffsets, null);
     }
 
     /**
@@ -286,16 +284,15 @@ public class KafkaHelper {
      * @param consumerGroupId
      * @param consumeFromBeginning
      * @param autoCommitOffsets
-     * @param leaderAutoRebalance
      * @param customProps
      * @return
      * @since 1.2.1
      */
     public static KafkaConsumer<String, byte[]> createKafkaConsumer(String bootstrapServers,
             String consumerGroupId, boolean consumeFromBeginning, boolean autoCommitOffsets,
-            boolean leaderAutoRebalance, Properties customProps) {
+            Properties customProps) {
         Properties props = buildKafkaConsumerProps(bootstrapServers, consumerGroupId,
-                consumeFromBeginning, autoCommitOffsets, leaderAutoRebalance, customProps);
+                consumeFromBeginning, autoCommitOffsets, customProps);
         KafkaConsumer<String, byte[]> consumer = new KafkaConsumer<String, byte[]>(props);
         return consumer;
     }
@@ -307,14 +304,12 @@ public class KafkaHelper {
      * @param consumerGroupId
      * @param consumeFromBeginning
      * @param autoCommitOffsets
-     * @param leaderAutoRebalance
      * @return
      */
     public static Properties buildKafkaConsumerProps(String bootstrapServers,
-            String consumerGroupId, boolean consumeFromBeginning, boolean autoCommitOffsets,
-            boolean leaderAutoRebalance) {
+            String consumerGroupId, boolean consumeFromBeginning, boolean autoCommitOffsets) {
         return buildKafkaConsumerProps(bootstrapServers, consumerGroupId, consumeFromBeginning,
-                autoCommitOffsets, leaderAutoRebalance, null);
+                autoCommitOffsets, null);
     }
 
     /**
@@ -330,14 +325,13 @@ public class KafkaHelper {
      * @param consumerGroupId
      * @param consumeFromBeginning
      * @param autoCommitOffsets
-     * @param leaderAutoRebalance
      * @param customProps
      * @since 1.2.1
      * @return
      */
     public static Properties buildKafkaConsumerProps(String bootstrapServers,
             String consumerGroupId, boolean consumeFromBeginning, boolean autoCommitOffsets,
-            boolean leaderAutoRebalance, Properties customProps) {
+            Properties customProps) {
         Properties props = new Properties();
         props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
         props.put(ConsumerConfig.GROUP_ID_CONFIG, consumerGroupId);
@@ -365,17 +359,18 @@ public class KafkaHelper {
         props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG,
                 ByteArrayDeserializer.class.getName());
 
-        if (leaderAutoRebalance) {
-            props.put("auto.leader.rebalance.enable", true);
-            props.put("rebalance.backoff.ms", String.valueOf(10000));
-            props.put("refresh.leader.backoff.ms", String.valueOf(1000));
-        } else {
-            props.put("auto.leader.rebalance.enable", false);
-        }
+        // if (leaderAutoRebalance) {
+        // props.put("auto.leader.rebalance.enable", true);
+        // props.put("rebalance.backoff.ms", String.valueOf(10000));
+        // props.put("refresh.leader.backoff.ms", String.valueOf(1000));
+        // } else {
+        // props.put("auto.leader.rebalance.enable", false);
+        // }
 
-        props.put("controlled.shutdown.enable", true);
-        props.put("controlled.shutdown.max.retries", String.valueOf(3));
-        props.put("controlled.shutdown.retry.backoff.ms", String.valueOf(3000));
+        // props.put("controlled.shutdown.enable", true);
+        // props.put("controlled.shutdown.max.retries", String.valueOf(3));
+        // props.put("controlled.shutdown.retry.backoff.ms",
+        // String.valueOf(3000));
 
         // max 256kb
         props.put(ConsumerConfig.MAX_PARTITION_FETCH_BYTES_CONFIG, String.valueOf(256 * 1024));

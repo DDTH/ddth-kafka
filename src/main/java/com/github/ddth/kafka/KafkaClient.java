@@ -37,27 +37,24 @@ import com.github.ddth.kafka.internal.KafkaMsgConsumer;
 public class KafkaClient implements Closeable {
 
     /**
-     * Producer type:
+     * Producer type (Note: new Java producer is async):
      * 
-     * <ul>
-     * <li>{@code FULL_ASYNC}: fully async producer (messages are sent in
-     * background thread), requires no ack from broker - maximum throughput but
-     * lowest durability.</li>
-     * <li>{@code SYNC_NO_ACK}: sync producer, requires no ack from broker -
-     * lowest latency but the weakest durability guarantees.</li>
-     * <li>{@code SYNC_LEADER_ACK}: sync producer, requires ack from the leader
-     * replica - balance latency/durability.</li>
-     * <li>{@code SYNC_ALL_ACKS}: sync producer, requires ack from all in-sync
-     * replicas - best durability.</li>
-     * </ul>
+     * <li>{@code NO_ACK}: producer will not wait for any acknowledgment from
+     * the server at all, {@code retries} configuration will not take effect.
+     * Lowest latency but the weakest durability guarantees.</li>
+     * <li>{@code LEADER_ACK}: leader will write the record to its local log but
+     * will respond without awaiting full acknowledgement from all followers.
+     * Balance latency/durability.</li>
+     * <li>{@code ALL_ACKS}: leader will wait for the full set of in-sync
+     * replicas to acknowledge the record. Best durability but the highest
+     * latency.</li>
      */
     public static enum ProducerType {
-        FULL_ASYNC, SYNC_NO_ACK, SYNC_LEADER_ACK, SYNC_ALL_ACKS;
-        public final static ProducerType[] ALL_TYPES = { FULL_ASYNC, SYNC_NO_ACK, SYNC_LEADER_ACK,
-                SYNC_ALL_ACKS };
+        NO_ACK, LEADER_ACK, ALL_ACKS;
+        public final static ProducerType[] ALL_TYPES = { NO_ACK, LEADER_ACK, ALL_ACKS };
     }
 
-    public final static ProducerType DEFAULT_PRODUCER_TYPE = ProducerType.SYNC_LEADER_ACK;
+    public final static ProducerType DEFAULT_PRODUCER_TYPE = ProducerType.LEADER_ACK;
 
     private final Logger LOGGER = LoggerFactory.getLogger(KafkaClient.class);
 
@@ -230,7 +227,7 @@ public class KafkaClient implements Closeable {
 
         if (metadataConsumer == null) {
             metadataConsumer = KafkaHelper.createKafkaConsumer(getKafkaBootstrapServers(),
-                    getMetadataConsumerGroupId(), false, true, false);
+                    getMetadataConsumerGroupId(), false, true);
         }
 
         if (cacheProducers == null) {

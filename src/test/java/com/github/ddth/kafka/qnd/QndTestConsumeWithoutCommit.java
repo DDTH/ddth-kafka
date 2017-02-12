@@ -29,7 +29,7 @@ public class QndTestConsumeWithoutCommit {
         props.put(ConsumerConfig.MAX_PARTITION_FETCH_BYTES_CONFIG, 128);
 
         KafkaConsumer<String, byte[]> consumer = KafkaHelper.createKafkaConsumer(brokers, grId,
-                true, false, true, props);
+                true, false, props);
         consumer.subscribe(Arrays.asList(topic));
         while (true) {
             ConsumerRecords<String, byte[]> recs = consumer.poll(100);

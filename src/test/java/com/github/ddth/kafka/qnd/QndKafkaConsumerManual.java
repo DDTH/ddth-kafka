@@ -11,8 +11,8 @@ public class QndKafkaConsumerManual {
     private final static String consumerGroupId = "ddth-kafka";
     private final static String topic = "ddth-kafka";
 
-    public void qndAsyncProducer() throws Exception {
-        System.out.println("========== QND: Async Producer ==========");
+    protected void qndNoAckProducer() throws Exception {
+        System.out.println("========== QND: NoAck Producer ==========");
         try (KafkaClient kafkaClient = new KafkaClient(brokers)) {
             kafkaClient.init();
 
@@ -20,7 +20,7 @@ public class QndKafkaConsumerManual {
             for (int i = 0; i < 10; i++) {
                 KafkaMessage msg = new KafkaMessage(topic,
                         "message - " + i + ": " + System.currentTimeMillis());
-                kafkaClient.sendMessage(KafkaClient.ProducerType.FULL_ASYNC, msg);
+                kafkaClient.sendMessage(KafkaClient.ProducerType.NO_ACK, msg);
                 long t1 = System.currentTimeMillis();
                 msg = kafkaClient.consumeMessage(consumerGroupId, true, topic, 10000,
                         TimeUnit.MILLISECONDS);
@@ -33,8 +33,8 @@ public class QndKafkaConsumerManual {
         }
     }
 
-    protected void qndSyncNoAckProducer() throws Exception {
-        System.out.println("========== QND: SyncNoAck Producer ==========");
+    protected void qndLeaderAckProducer() throws Exception {
+        System.out.println("========== QND: LeaderAck Producer ==========");
         try (KafkaClient kafkaClient = new KafkaClient(brokers)) {
             kafkaClient.init();
 
@@ -42,7 +42,7 @@ public class QndKafkaConsumerManual {
             for (int i = 0; i < 10; i++) {
                 KafkaMessage msg = new KafkaMessage(topic,
                         "message - " + i + ": " + System.currentTimeMillis());
-                kafkaClient.sendMessage(KafkaClient.ProducerType.SYNC_NO_ACK, msg);
+                kafkaClient.sendMessage(KafkaClient.ProducerType.LEADER_ACK, msg);
                 long t1 = System.currentTimeMillis();
                 msg = kafkaClient.consumeMessage(consumerGroupId, true, topic, 10000,
                         TimeUnit.MILLISECONDS);
@@ -55,8 +55,8 @@ public class QndKafkaConsumerManual {
         }
     }
 
-    protected void qndSyncLeaderAckProducer() throws Exception {
-        System.out.println("========== QND: SyncLeaderAck Producer ==========");
+    protected void qndAllAcksProducer() throws Exception {
+        System.out.println("========== QND: AllAcks Producer ==========");
         try (KafkaClient kafkaClient = new KafkaClient(brokers)) {
             kafkaClient.init();
 
@@ -64,29 +64,7 @@ public class QndKafkaConsumerManual {
             for (int i = 0; i < 10; i++) {
                 KafkaMessage msg = new KafkaMessage(topic,
                         "message - " + i + ": " + System.currentTimeMillis());
-                kafkaClient.sendMessage(KafkaClient.ProducerType.SYNC_LEADER_ACK, msg);
-                long t1 = System.currentTimeMillis();
-                msg = kafkaClient.consumeMessage(consumerGroupId, true, topic, 10000,
-                        TimeUnit.MILLISECONDS);
-                long t2 = System.currentTimeMillis();
-                System.out.println((msg != null ? msg.contentAsString() : null) + "\t" + (t2 - t1));
-            }
-            long timeEnd = System.currentTimeMillis();
-            System.out.println("Total: " + (timeEnd - timestart));
-            Thread.sleep(2000);
-        }
-    }
-
-    protected void qndSyncAllAcksProducer() throws Exception {
-        System.out.println("========== QND: SyncAllAcks Producer ==========");
-        try (KafkaClient kafkaClient = new KafkaClient(brokers)) {
-            kafkaClient.init();
-
-            long timestart = System.currentTimeMillis();
-            for (int i = 0; i < 10; i++) {
-                KafkaMessage msg = new KafkaMessage(topic,
-                        "message - " + i + ": " + System.currentTimeMillis());
-                kafkaClient.sendMessage(KafkaClient.ProducerType.SYNC_ALL_ACKS, msg);
+                kafkaClient.sendMessage(KafkaClient.ProducerType.ALL_ACKS, msg);
                 long t1 = System.currentTimeMillis();
                 msg = kafkaClient.consumeMessage(consumerGroupId, true, topic, 10000,
                         TimeUnit.MILLISECONDS);
@@ -102,9 +80,8 @@ public class QndKafkaConsumerManual {
     public static void main(String[] args) throws Exception {
         QndKafkaConsumerManual test = new QndKafkaConsumerManual();
 
-        test.qndAsyncProducer();
-        test.qndSyncNoAckProducer();
-        test.qndSyncLeaderAckProducer();
-        test.qndSyncAllAcksProducer();
+        test.qndNoAckProducer();
+        test.qndLeaderAckProducer();
+        test.qndAllAcksProducer();
     }
 }

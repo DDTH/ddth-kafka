@@ -21,7 +21,7 @@ public class QndManualCommit {
         final String GROUP_ID = "ddth-kafka";
 
         KafkaConsumer<String, byte[]> consumer = KafkaHelper.createKafkaConsumer(BOOTSTRAP_SERVERS,
-                GROUP_ID, true, false, true);
+                GROUP_ID, true, false);
         try {
             consumer.subscribe(Arrays.asList(TOPIC));
 

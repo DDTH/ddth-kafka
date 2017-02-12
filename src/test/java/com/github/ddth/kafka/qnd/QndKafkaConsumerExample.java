@@ -13,13 +13,13 @@ public class QndKafkaConsumerExample {
 
     public static void main(String[] args) {
         final String BOOTSTRAP_SERVERS = "localhost:9092";
-        final String TOPIC = "demo";
+        final String TOPIC = "ddth-kafka";
         // final String GROUP_ID = "mynewid-" + System.currentTimeMillis();
         final String GROUP_ID = "mygroupid";
         final boolean CONSUME_FROM_BEGINNING = true;
 
         KafkaConsumer<String, byte[]> consumer = KafkaHelper.createKafkaConsumer(BOOTSTRAP_SERVERS,
-                GROUP_ID, CONSUME_FROM_BEGINNING, true, true);
+                GROUP_ID, CONSUME_FROM_BEGINNING, true);
 
         List<String> topics = Arrays.asList(TOPIC);
         consumer.subscribe(topics);

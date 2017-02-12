@@ -134,7 +134,7 @@ public abstract class BaseKafkaTest extends TestCase {
     }
 
     protected void warnup(String topic, String groupId) throws Exception {
-        kafkaClient.sendMessage(ProducerType.SYNC_ALL_ACKS, new KafkaMessage(topic, "warnup"));
+        kafkaClient.sendMessage(ProducerType.ALL_ACKS, new KafkaMessage(topic, "warnup"));
         KafkaMessage msg = kafkaClient.consumeMessage(groupId, true, topic, 1000,
                 TimeUnit.MILLISECONDS);
         while (msg == null) {

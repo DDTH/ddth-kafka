@@ -409,7 +409,7 @@ public class KafkaMsgConsumer {
      * @since 1.3.2
      */
     private KafkaConsumer<String, byte[]> _getConsumer(String topic) {
-        return _getConsumer(topic, true, true);
+        return _getConsumer(topic, true);
     }
 
     /**
@@ -433,16 +433,13 @@ public class KafkaMsgConsumer {
      * 
      * @param topic
      * @param autoCommitOffsets
-     * @param leaderAutoRebalance
      * @since 1.2.0
      */
-    private KafkaConsumer<String, byte[]> _getConsumer(String topic, boolean autoCommitOffsets,
-            boolean leaderAutoRebalance) {
+    private KafkaConsumer<String, byte[]> _getConsumer(String topic, boolean autoCommitOffsets) {
         KafkaConsumer<String, byte[]> consumer = topicConsumers.get(topic);
         if (consumer == null) {
             consumer = KafkaHelper.createKafkaConsumer(bootstrapServers, consumerGroupId,
-                    consumeFromBeginning, autoCommitOffsets, leaderAutoRebalance,
-                    consumerProperties);
+                    consumeFromBeginning, autoCommitOffsets, consumerProperties);
             KafkaConsumer<String, byte[]> existingConsumer = topicConsumers.putIfAbsent(topic,
                     consumer);
             if (existingConsumer != null) {

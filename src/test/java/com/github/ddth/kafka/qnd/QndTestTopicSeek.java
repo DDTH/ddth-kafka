@@ -16,15 +16,14 @@ import com.github.ddth.kafka.internal.KafkaHelper;
 public class QndTestTopicSeek {
     public static void main(String[] args) throws Exception {
         final String BOOTSTRAP_SERVERS = "localhost:9092";
-        final String TOPIC = "demo";
-        // final String GROUP_ID = "mynewid" + System.currentTimeMillis();
-        final String GROUP_ID = "myoldgroupid";
+        final String TOPIC = "ddth-kafka";
+        final String GROUP_ID = "mynewid" + System.currentTimeMillis();
         final boolean CONSUME_FROM_BEGINNING = true;
 
         try (KafkaProducer<String, byte[]> producer = KafkaHelper
-                .createKafkaProducer(ProducerType.FULL_ASYNC, BOOTSTRAP_SERVERS)) {
+                .createKafkaProducer(ProducerType.LEADER_ACK, BOOTSTRAP_SERVERS)) {
             try (KafkaConsumer<String, byte[]> consumer = KafkaHelper.createKafkaConsumer(
-                    BOOTSTRAP_SERVERS, GROUP_ID, CONSUME_FROM_BEGINNING, true, true)) {
+                    BOOTSTRAP_SERVERS, GROUP_ID, CONSUME_FROM_BEGINNING, true)) {
                 KafkaHelper.seekToEnd(consumer, TOPIC);
 
                 String value = DateFormatUtils.toString(new Date(), "yyyy-MM-dd HH:mm:ss");

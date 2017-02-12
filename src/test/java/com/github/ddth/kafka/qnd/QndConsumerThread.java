@@ -14,8 +14,8 @@ public class QndConsumerThread {
         // final String GROUP_ID = "mynewid-" + System.currentTimeMillis();
         final String GROUP_ID = "mygroupid";
         // final boolean CONSUME_FROM_BEGINNING = true;
-        final KafkaClient.ProducerType PRODUCER_TYPE = KafkaClient.ProducerType.FULL_ASYNC;
-        final String TOPIC = "demo";
+        final KafkaClient.ProducerType PRODUCER_TYPE = KafkaClient.ProducerType.LEADER_ACK;
+        final String TOPIC = "ddth-kafka";
 
         try (KafkaClient kafkaClient = new KafkaClient(BOOTSTRAP_SERVERS)) {
             kafkaClient.init();
