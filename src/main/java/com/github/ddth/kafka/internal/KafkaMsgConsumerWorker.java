@@ -1,35 +1,38 @@
 package com.github.ddth.kafka.internal;
 
+import com.github.ddth.kafka.IKafkaMessageListener;
+import com.github.ddth.kafka.KafkaMessage;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import com.github.ddth.kafka.IKafkaMessageListener;
-import com.github.ddth.kafka.KafkaMessage;
-
+/**
+ * A simple worker that constantly polls messages from Kafka and delivers to subscribers.
+ *
+ * @author Thanh Ba Nguyen <bnguyen2k@gmail.com>
+ * @since 1.0.0
+ */
 public class KafkaMsgConsumerWorker extends Thread {
-
     private final Logger LOGGER = LoggerFactory.getLogger(KafkaMsgConsumerWorker.class);
 
     private KafkaMsgConsumer consumer;
-    private Collection<IKafkaMessageListener> messageListerners;
+    private Collection<IKafkaMessageListener> subscribers = new HashSet<>();
     private String topic;
     private boolean stop = false;
-
     private ExecutorService executorService;
 
     public KafkaMsgConsumerWorker(KafkaMsgConsumer consumer, String topic,
-            Collection<IKafkaMessageListener> messageListerners, ExecutorService executorService) {
+            Collection<IKafkaMessageListener> subscribers, ExecutorService executorService) {
         super(KafkaMsgConsumerWorker.class.getCanonicalName() + " - " + topic);
         this.consumer = consumer;
         this.topic = topic;
-        this.messageListerners = messageListerners;
         this.executorService = executorService;
+        setSubscribers(subscribers);
     }
 
     /**
@@ -41,46 +44,62 @@ public class KafkaMsgConsumerWorker extends Thread {
 
     private void deliverMessage(KafkaMessage msg, Collection<IKafkaMessageListener> msgListeners) {
         CountDownLatch counter = new CountDownLatch(msgListeners.size());
-        // AtomicInteger counter = new AtomicInteger(msgListeners.size());
         for (final IKafkaMessageListener listerner : msgListeners) {
-            executorService.submit(new Runnable() {
-                @Override
-                public void run() {
-                    try {
-                        listerner.onMessage(msg);
-                    } finally {
-                        // counter.decrementAndGet();
-                        counter.countDown();
-                    }
+            executorService.submit(() -> {
+                try {
+                    listerner.onMessage(msg);
+                } catch (Exception e) {
+                    LOGGER.error(e.getMessage(), e);
+                } finally {
+                    counter.countDown();
                 }
             });
         }
-        // while (counter.get() > 0)
-        // ;
         try {
-            counter.await();
+            if (!counter.await(30, TimeUnit.SECONDS)) {
+                LOGGER.warn("Message has not delivered successfully to all subscribers within 30 seconds.");
+            }
         } catch (InterruptedException e) {
             LOGGER.warn(e.getMessage(), e);
         }
     }
 
+    /**
+     * Set/Update subscriber list.
+     *
+     * @param subscribers
+     * @return
+     * @since 2.0.0
+     */
+    public KafkaMsgConsumerWorker setSubscribers(Collection<IKafkaMessageListener> subscribers) {
+        synchronized (this.subscribers) {
+            this.subscribers.clear();
+            if (subscribers != null) {
+                this.subscribers.addAll(subscribers);
+            }
+        }
+        return this;
+    }
+
     @Override
     public void run() {
-        Collection<IKafkaMessageListener> msgListeners = new HashSet<IKafkaMessageListener>();
+        Collection<IKafkaMessageListener> copiedSubscribers = new HashSet<>();
         while (!stop) {
-            msgListeners.clear();
-            msgListeners.addAll(messageListerners);
-
-            if (msgListeners.size() > 0) {
-                KafkaMessage msg = consumer.consume(topic, 100, TimeUnit.MILLISECONDS);
-                if (msg != null) {
-                    deliverMessage(msg, msgListeners);
+            copiedSubscribers.clear();
+            synchronized (subscribers) {
+                copiedSubscribers.addAll(subscribers);
+            }
+            if (copiedSubscribers.size() > 0) {
+                try {
+                    KafkaMessage msg = consumer.consume(topic, 100, TimeUnit.MILLISECONDS);
+                    if (msg != null) {
+                        deliverMessage(msg, copiedSubscribers);
+                    }
+                } catch (Exception e) {
+                    LOGGER.error(e.getMessage(), e);
                 }
             }
-            try {
-                Thread.sleep(1);
-            } catch (InterruptedException e) {
-            }
+            Thread.yield();
         }
     }
 }

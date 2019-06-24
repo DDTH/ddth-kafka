@@ -3,31 +3,48 @@ package com.github.ddth.kafka.qnd;
 import com.github.ddth.commons.utils.IdGenerator;
 import com.github.ddth.kafka.KafkaClient;
 import com.github.ddth.kafka.KafkaMessage;
-import org.apache.kafka.clients.producer.Callback;
 
 import java.text.MessageFormat;
-import java.util.concurrent.TimeUnit;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
-public class QndMultithreadAsyncProducerConsumer {
+public class QndMultithreadBulkProducerConsumer {
+
     private final static IdGenerator idGen = IdGenerator.getInstance(0);
 
-    private static Thread[] createProducerThreads(KafkaClient kafkaClient, String topic, AtomicLong counterSent,
-            int numThreads, final int numMsgs) {
+    private static Thread[] createProducerThreads(final KafkaClient kafkaClient, final String topic,
+            AtomicLong counterSent, int numThreads, final int numMsgs) {
         Thread[] result = new Thread[numThreads];
         for (int i = 0; i < numThreads; i++) {
             result[i] = new Thread("Producer - " + i) {
                 public void run() {
-                    Callback callback = (metadata, exception) -> {
-                        if (exception == null) {
-                            counterSent.incrementAndGet();
-                        }
-                    };
+                    List<KafkaMessage> buffer = new ArrayList<>();
                     for (int i = 0; i < numMsgs; i++) {
                         String content = i + ":" + idGen.generateId128Hex();
-                        KafkaMessage msg = new KafkaMessage(topic, content);
-                        kafkaClient.sendMessageRaw(msg, callback);
+                        buffer.add(new KafkaMessage(topic, content));
+                        if (i % 100 == 0) {
+                            List<KafkaMessage> sendResult = kafkaClient
+                                    .sendBulk(buffer.toArray(KafkaMessage.EMPTY_ARRAY));
+                            if (sendResult.size() == buffer.size()) {
+                                counterSent.addAndGet(sendResult.size());
+                            } else {
+                                System.out.println("Something wrong!");
+                                throw new RuntimeException("Something wrong!");
+                            }
+                            buffer.clear();
+                        }
+                    }
+                    if (buffer.size() > 0) {
+                        List<KafkaMessage> sendResult = kafkaClient.sendBulk(buffer.toArray(KafkaMessage.EMPTY_ARRAY));
+                        if (sendResult.size() == buffer.size()) {
+                            counterSent.addAndGet(sendResult.size());
+                        } else {
+                            System.out.println("Something wrong!");
+                            throw new RuntimeException("Something wrong!");
+                        }
+                        buffer.clear();
                     }
                 }
             };
@@ -35,30 +52,23 @@ public class QndMultithreadAsyncProducerConsumer {
         return result;
     }
 
-    private static Thread[] createConsumerThreads(KafkaClient kafkaClient, String topic, String groupId,
-            AtomicLong counterReceived, AtomicBoolean signal, int numThreads) {
+    private static Thread[] createConsumerThreads(final KafkaClient kafkaClient, final String topic,
+            final String groupId, AtomicLong counterReceived, final AtomicBoolean signal, int numThreads) {
         Thread[] result = new Thread[numThreads];
         for (int i = 0; i < numThreads; i++) {
             result[i] = new Thread("Consumer - " + i) {
                 public void run() {
-                    AtomicLong myCounter = new AtomicLong(0);
-                    long t = System.currentTimeMillis();
                     while (!signal.get()) {
                         try {
                             KafkaMessage msg = kafkaClient.consumeMessage(groupId, topic);
                             if (msg != null) {
                                 counterReceived.incrementAndGet();
-                                myCounter.incrementAndGet();
                             }
                         } catch (Exception e) {
                             e.printStackTrace();
                             break;
                         }
                     }
-                    long d = System.currentTimeMillis() - t;
-                    System.out.println(
-                            "\t" + getName() + " consumed " + myCounter.get() + " msgs in " + d + " ms - " + String
-                                    .format("%,.1f", myCounter.get() * 1000.0 / d) + " msg/s");
                 }
             };
         }
@@ -67,12 +77,13 @@ public class QndMultithreadAsyncProducerConsumer {
 
     public static void flush(KafkaClient kafkaClient, String topic, String groupId) {
         kafkaClient.seekToEnd(groupId, topic);
+
         int numMsgs = 0;
         long t1 = System.currentTimeMillis();
-        KafkaMessage msg = kafkaClient.consumeMessage(groupId, topic, 1000, TimeUnit.MILLISECONDS);
+        KafkaMessage msg = kafkaClient.consumeMessage(groupId, topic);
         while (msg != null) {
             numMsgs++;
-            msg = kafkaClient.consumeMessage(groupId, topic, 1000, TimeUnit.MILLISECONDS);
+            msg = kafkaClient.consumeMessage(groupId, topic);
         }
         System.out.println("* Flush " + numMsgs + " msgs in " + (System.currentTimeMillis() - t1) + "ms.");
     }
@@ -115,15 +126,16 @@ public class QndMultithreadAsyncProducerConsumer {
         } else {
             System.out.print("[T]");
         }
-        System.out.println("  Msgs: " + numMsgs + " - " + COUNTER_SENT.get() + " - " + COUNTER_RECEIVED.get()
+        System.out.println("  Msgs: " + numMsgs + " / " + COUNTER_SENT.get() + " - " + COUNTER_RECEIVED.get()
                 + " / Duration Send: " + d1 + "ms - " + String.format("%,.1f", numMsgs * 1000.0 / d1) + " msg/s"
                 + " / Duration Receive: " + d2 + "ms - " + String.format("%,.1f", numMsgs * 1000.0 / d2) + " msg/s");
-        System.out.println();
+        System.out.println("\tShutting down...");
+        System.out.println("\tdone.");
     }
 
     public static void main(String[] args) throws Exception {
         final String BOOTSTRAP_SERVERS = "localhost:9092";
-        final String TOPIC = "t4partition";
+        final String TOPIC = "t1partition";
         final String GROUP_ID = "mygroupid";
         final int NUM_MSGS = 64 * 1024;
 

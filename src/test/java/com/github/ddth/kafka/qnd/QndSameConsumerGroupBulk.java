@@ -3,21 +3,28 @@ package com.github.ddth.kafka.qnd;
 import com.github.ddth.kafka.KafkaClient;
 import com.github.ddth.kafka.KafkaMessage;
 
+import java.util.ArrayList;
 import java.util.Date;
+import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
-public class QndSameConsumerGroup {
+public class QndSameConsumerGroupBulk {
 
     private static AtomicLong NUM_SENT = new AtomicLong(0);
     private static AtomicLong NUM_TAKEN = new AtomicLong(0);
     private static AtomicLong NUM_EXCEPTION = new AtomicLong(0);
-    private static ConcurrentMap<Object, Object> SENT = new ConcurrentHashMap<Object, Object>();
-    private static ConcurrentMap<Object, Object> RECEIVE = new ConcurrentHashMap<Object, Object>();
+    private static ConcurrentMap<Object, Object> SENT;
+
+    static {
+        SENT = new ConcurrentHashMap<>();
+    }
+
+    private static ConcurrentMap<Object, Object> RECEIVE = new ConcurrentHashMap<>();
     private static AtomicLong TIMESTAMP = new AtomicLong(0);
-    private static long NUM_ITEMS = 10240;
+    private static long NUM_ITEMS = 64 * 1024;
     private static int NUM_THREADS = 4;
 
     private static void emptyQueue(KafkaClient kafkaClient, String topic, String consumerGroupId) {
@@ -33,12 +40,21 @@ public class QndSameConsumerGroup {
     }
 
     private static void putToQueue(KafkaClient kafkaClient, String topic, long numItems) {
+        List<KafkaMessage> buffer = new ArrayList<>();
         for (int i = 0; i < numItems; i++) {
             String content = "Content: [" + i + "] " + new Date();
             KafkaMessage kmsg = new KafkaMessage(topic, content);
-            kafkaClient.sendMessage(kmsg);
+            buffer.add(kmsg);
+            if (i % 100 == 0) {
+                kafkaClient.sendBulk(buffer.toArray(KafkaMessage.EMPTY_ARRAY));
+                buffer.clear();
+            }
             NUM_SENT.incrementAndGet();
             SENT.put(content, Boolean.TRUE);
+        }
+        if (buffer.size() > 0) {
+            kafkaClient.sendBulk(buffer.toArray(KafkaMessage.EMPTY_ARRAY));
+            buffer.clear();
         }
     }
 

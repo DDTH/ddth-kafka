@@ -1,12 +1,12 @@
 package com.github.ddth.kafka.qnd;
 
-import java.text.MessageFormat;
-import java.util.concurrent.atomic.AtomicLong;
-
 import com.github.ddth.commons.utils.IdGenerator;
 import com.github.ddth.kafka.IKafkaMessageListener;
 import com.github.ddth.kafka.KafkaClient;
 import com.github.ddth.kafka.KafkaMessage;
+
+import java.text.MessageFormat;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class QndMultithreadSyncProducerConsumerListener {
 
@@ -40,12 +40,11 @@ public class QndMultithreadSyncProducerConsumerListener {
             numMsgs++;
             msg = kafkaClient.consumeMessage(groupId, topic);
         }
-        System.out.println(
-                "* Flush " + numMsgs + " msgs in " + (System.currentTimeMillis() - t1) + "ms.");
+        System.out.println("* Flush " + numMsgs + " msgs in " + (System.currentTimeMillis() - t1) + "ms.");
     }
 
-    public static void run(KafkaClient kafkaClient, String topic, String groupId, int numMsgs,
-            int numProducers) throws InterruptedException {
+    public static void run(KafkaClient kafkaClient, String topic, String groupId, int numMsgs, int numProducers)
+            throws InterruptedException {
         final AtomicLong COUNTER_SENT = new AtomicLong(0);
         final AtomicLong COUNTER_RECEIVED = new AtomicLong(0);
 
@@ -57,15 +56,12 @@ public class QndMultithreadSyncProducerConsumerListener {
         }
 
         long t = System.currentTimeMillis();
-        IKafkaMessageListener messageListener = new IKafkaMessageListener() {
-            @Override
-            public void onMessage(KafkaMessage message) {
-                if (message != null) {
-                    COUNTER_RECEIVED.incrementAndGet();
-                } else {
-                    System.out.println("Something wrong!");
-                    throw new IllegalStateException();
-                }
+        IKafkaMessageListener messageListener = message -> {
+            if (message != null) {
+                COUNTER_RECEIVED.incrementAndGet();
+            } else {
+                System.out.println("Something wrong!");
+                throw new IllegalStateException();
             }
         };
         kafkaClient.addMessageListener(groupId, true, topic, messageListener);
@@ -83,16 +79,16 @@ public class QndMultithreadSyncProducerConsumerListener {
         } else {
             System.out.print("[T]");
         }
-        System.out.println("  Msgs: " + numMsgs + " - " + COUNTER_SENT.get() + " / "
-                + COUNTER_RECEIVED.get() + " - Duration: " + d + "ms - "
-                + String.format("%,.1f", numMsgs * 1000.0 / d) + " msg/s");
+        System.out.println(
+                "  Msgs: " + numMsgs + " - " + COUNTER_SENT.get() + " / " + COUNTER_RECEIVED.get() + " - Duration: " + d
+                        + "ms - " + String.format("%,.1f", numMsgs * 1000.0 / d) + " msg/s");
     }
 
     public static void main(String[] args) throws Exception {
         final String BOOTSTRAP_SERVERS = "localhost:9092";
-        final String TOPIC = "ddth-kafka";
-        final String GROUP_ID = "ddth-kafka";
-        final int NUM_MSGS = 2 * 1024;
+        final String TOPIC = "t1partition";
+        final String GROUP_ID = "mygroupid";
+        final int NUM_MSGS = 4 * 1024;
 
         try (KafkaClient kafkaClient = new KafkaClient(BOOTSTRAP_SERVERS)) {
             kafkaClient.init();

@@ -5,10 +5,10 @@ import com.github.ddth.kafka.KafkaMessage;
 
 public class QndProducerSyncExample {
 
-    public static void main(String[] args) throws Exception {
+    public static void main(String[] args) {
         final String bootstrapServers = "localhost:9092";
-        final String topic = "ddth-kafka";
-        final int numMsgs = 1024;
+        final String topic = "t4partition";
+        final int numMsgs = 4 * 1024;
 
         long t1 = System.currentTimeMillis();
         try (KafkaClient kafkaClient = new KafkaClient(bootstrapServers)) {
@@ -20,8 +20,8 @@ public class QndProducerSyncExample {
             }
         }
         long d = System.currentTimeMillis() - t1;
-        System.out.println("Sent " + numMsgs + " messages in " + d + "ms (" + (numMsgs * 1000.0 / d)
-                + " msgs/s)");
-
+        System.out.println(
+                "Sent " + numMsgs + " messages in " + d + "ms (" + String.format("%,.1f", numMsgs * 1000.0 / d)
+                        + " msgs/s)");
     }
 }

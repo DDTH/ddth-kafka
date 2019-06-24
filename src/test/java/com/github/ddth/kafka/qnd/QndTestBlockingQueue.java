@@ -9,18 +9,16 @@ public class QndTestBlockingQueue {
         final int NUM_ITEMS = 10;
         final BlockingQueue<String> QUEUE = new LinkedBlockingQueue<String>();
 
-        Thread T = new Thread() {
-            public void run() {
-                final Random rand = new Random(System.currentTimeMillis());
-                for (int i = 0; i < NUM_ITEMS; i++) {
-                    QUEUE.add(String.valueOf(i));
-                    try {
-                        Thread.sleep(rand.nextInt(5000));
-                    } catch (Exception e) {
-                    }
+        Thread T = new Thread(() -> {
+            final Random rand = new Random(System.currentTimeMillis());
+            for (int i = 0; i < NUM_ITEMS; i++) {
+                QUEUE.add(String.valueOf(i));
+                try {
+                    Thread.sleep(rand.nextInt(5000));
+                } catch (Exception e) {
                 }
             }
-        };
+        });
         T.start();
 
         for (int i = 0; i < NUM_ITEMS; i++) {
